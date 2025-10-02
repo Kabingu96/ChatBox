@@ -1,0 +1,149 @@
+/* App.css */
+
+/* Container */
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+}
+
+/* Dark Mode */
+.chat-container.dark {
+  background-color: #0f1720;
+  color: #e5e7eb;
+}
+
+.chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.chat-container.dark .chat-header {
+  border-bottom: 1px solid #1f2937;
+}
+
+.messages-wrap {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+  background-color: #ffffff;
+}
+
+.chat-container.dark .messages-wrap {
+  background-color: #0b1220;
+}
+
+.input-bar {
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+  border-top: 1px solid #e5e7eb;
+  align-items: center;
+  background-color: #fafafa;
+}
+
+.chat-container.dark .input-bar {
+  border-top: 1px solid #1f2937;
+  background-color: #071018;
+}
+
+.input-bar input {
+  flex: 1;
+  padding: 12px 16px;
+  border-radius: 999px;
+  border: 1px solid #d1d5db;
+  outline: none;
+  background-color: #fff;
+  color: #111827;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+}
+
+.chat-container.dark .input-bar input {
+  border: 1px solid #334155;
+  background-color: #0b1220;
+  color: #e5e7eb;
+}
+
+.input-bar button {
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  background-color: #2563eb;
+  color: #fff;
+}
+
+.chat-container.dark .input-bar button {
+  background-color: #0ea5a4;
+}
+
+/* Messages */
+.message-wrapper {
+  display: flex;
+  margin-bottom: 10px;
+}
+
+.message-bubble {
+  padding: 8px 12px;
+  border-radius: 12px;
+  max-width: 72%;
+  box-shadow: 0 1px 3px rgba(2,6,23,0.06);
+  word-break: break-word;
+}
+
+.message-bubble.mine {
+  background-color: #dcf8c6;
+  align-self: flex-end;
+  box-shadow: 0 3px 8px rgba(2,6,23,0.2);
+}
+
+.chat-container.dark .message-bubble.mine {
+  background-color: #064e4e;
+  color: #fff;
+}
+
+.message-bubble.other {
+  background-color: #fff;
+}
+
+.chat-container.dark .message-bubble.other {
+  background-color: #1f2937;
+  color: #fff;
+}
+
+.message-bubble .username {
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 4px;
+  opacity: 0.9;
+}
+
+.message-bubble .text {
+  white-space: pre-wrap;
+}
+
+.message-bubble .timestamp {
+  font-size: 11px;
+  text-align: right;
+  margin-top: 6px;
+  opacity: 0.7;
+}
+
+.message-bubble .actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.message-bubble .actions button {
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  background-color: #2563eb;
+  color: #fff;
+}
