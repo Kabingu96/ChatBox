@@ -476,6 +476,13 @@ func main() {
         }
     })))
 
+    // Download updated repository zip
+    http.Handle("/download", enableCors(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        w.Header().Set("Content-Type", "application/zip")
+        w.Header().Set("Content-Disposition", "attachment; filename=ChatBox-updated.zip")
+        http.ServeFile(w, r, "ChatBox-updated.zip")
+    })))
+
     // WebSocket endpoint expects ?username=XYZ from frontend after login
     http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
         username := r.URL.Query().Get("username")
