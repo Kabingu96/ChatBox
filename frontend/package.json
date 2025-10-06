@@ -7,14 +7,17 @@
     "react-dom": "18.2.0",
     "react-scripts": "^5.0.1"
   },
+  "devDependencies": {
+    "cross-env": "^10.1.0",
+    "concurrently": "^9.2.1"
+  },
   "scripts": {
-    "start": "cross-env PORT=3000 react-scripts start",
+    "start": "concurrently \"npm run react\" \"npm run server\"",
+    "react": "cross-env PORT=3000 react-scripts start",
+    "server": "cd ../backend && go run main.go",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
-  },
-  "devDependencies": {
-    "cross-env": "^10.1.0"
   },
   "browserslist": {
     "production": [
