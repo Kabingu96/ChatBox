@@ -1,0 +1,17 @@
+.app-header {
+  width: 100%;
+  margin: 0;
+  padding: 16px 20px;
+  background: linear-gradient(90deg, #15223b, #4a90e2, #9013fe);
+  color: #fff;
+  text-align: center;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.25);
+
+  h1, h2 {
+    margin: 0;
+    padding: 0;
+    font-size: 2rem;
+    letter-spacing: 1px;
+  }
+}
