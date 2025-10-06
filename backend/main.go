@@ -188,8 +188,9 @@ func (c *Client) readPump() {
         }
 
         var inc struct {
-            Text     string `json:"text"`
-            Timezone string `json:"timezone,omitempty"`
+            Text      string `json:"text"`
+            Timezone  string `json:"timezone,omitempty"`
+            ClientID  int64  `json:"clientId,omitempty"`
         }
         if err := json.Unmarshal(raw, &inc); err != nil {
             log.Println("unmarshal error:", err)
@@ -208,6 +209,18 @@ func (c *Client) readPump() {
 
         id := saveMessage(out)
         out.ID = id
+
+        // send ack back to sender with mapping clientId -> id
+        if inc.ClientID > 0 {
+            ack := struct {
+                Type     string `json:"type"`
+                ClientID int64  `json:"clientId"`
+                ID       int64  `json:"id"`
+            }{Type: "ack", ClientID: inc.ClientID, ID: id}
+            if b, err := json.Marshal(ack); err == nil {
+                _ = c.conn.WriteMessage(websocket.TextMessage, b)
+            }
+        }
 
         outBytes, _ := json.Marshal(out)
         c.hub.broadcast <- Broadcast{sender: c, message: outBytes}

@@ -9,11 +9,19 @@ export default function ChatBoxContent({ username }) {
   const [editInput, setEditInput] = useState("");
   const endRef = useRef(null);
 
+  // Resolve backend base URL dynamically for multi-device/network use
+  const isSecure = window.location.protocol === "https:";
+  const httpProto = isSecure ? "https" : "http";
+  const wsProto = isSecure ? "wss" : "ws";
+  const host = window.location.hostname;
+  const backendHttp = `${httpProto}://${host}:8080`;
+  const backendWs = `${wsProto}://${host}:8080`;
+
   // Load dark mode preference from backend
   useEffect(() => {
     const fetchDarkMode = async () => {
       try {
-        const res = await fetch(`http://localhost:8080/get_dark_mode?username=${username}`);
+        const res = await fetch(`${backendHttp}/get_dark_mode?username=${username}`);
         if (res.ok) {
           const data = await res.json();
           setDarkMode(data.darkMode);
@@ -23,17 +31,23 @@ export default function ChatBoxContent({ username }) {
       }
     };
     fetchDarkMode();
-  }, [username]);
+  }, [username, backendHttp]);
 
   // Open WebSocket once
   useEffect(() => {
-    const socket = new WebSocket(`ws://localhost:8080/ws?username=${username}`);
+    const socket = new WebSocket(`${backendWs}/ws?username=${username}`);
 
     socket.onopen = () => console.log("✅ WebSocket connected");
 
     socket.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
+
+        // ack from server to map local temp id -> real id
+        if (payload.type === "ack" && payload.clientId && payload.id) {
+          setMessages((prev) => prev.map((m) => (m.id === payload.clientId ? { ...m, id: payload.id } : m)));
+          return;
+        }
 
         // history from server
         if (payload.type === "history" && Array.isArray(payload.messages)) {
@@ -84,7 +98,7 @@ export default function ChatBoxContent({ username }) {
     return () => {
       socket.close();
     };
-  }, [username]);
+  }, [username, backendWs]);
 
   // Scroll to bottom
   useEffect(() => {
@@ -101,7 +115,7 @@ export default function ChatBoxContent({ username }) {
 
     // local immediate message
     const local = {
-      id: Date.now(), // temporary id until backend returns proper id
+      id: Date.now(), // temporary id until ack maps to real id
       username,
       text: textTrimmed,
       timestamp,
@@ -110,14 +124,14 @@ export default function ChatBoxContent({ username }) {
     setMessages((prev) => [...prev, local]);
 
     // send to server
-    ws.send(JSON.stringify({ username, text: textTrimmed, timestamp }));
+    ws.send(JSON.stringify({ username, text: textTrimmed, timestamp, clientId: local.id }));
     setInput("");
   };
 
   const editMessage = async (id) => {
     if (!editInput.trim()) return;
     try {
-      const res = await fetch("http://localhost:8080/message", {
+      const res = await fetch(`${backendHttp}/message`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, text: editInput }),
@@ -130,7 +144,7 @@ export default function ChatBoxContent({ username }) {
 
   const deleteMessage = async (id) => {
     try {
-      const res = await fetch(`http://localhost:8080/message?id=${id}`, {
+      const res = await fetch(`${backendHttp}/message?id=${id}`, {
         method: "DELETE",
       });
       if (!res.ok) console.error("Delete failed");
@@ -204,7 +218,7 @@ export default function ChatBoxContent({ username }) {
               const newMode = !darkMode;
               setDarkMode(newMode);
               try {
-                await fetch("http://localhost:8080/set_dark_mode", {
+                await fetch(`${backendHttp}/set_dark_mode`, {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ username, darkMode: newMode }),
