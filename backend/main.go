@@ -5,6 +5,8 @@ import (
     "fmt"
     "log"
     "net/http"
+    "os"
+    "path/filepath"
     "strconv"
     "sync"
     "time"
@@ -478,9 +480,20 @@ func main() {
 
     // Download updated repository zip
     http.Handle("/download", enableCors(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        w.Header().Set("Content-Type", "application/zip")
-        w.Header().Set("Content-Disposition", "attachment; filename=ChatBox-updated.zip")
-        http.ServeFile(w, r, "ChatBox-updated.zip")
+        candidates := []string{
+            "ChatBox-updated.zip",
+            filepath.Join("..", "ChatBox-updated.zip"),
+            filepath.Join("..", "..", "ChatBox-updated.zip"),
+        }
+        for _, p := range candidates {
+            if info, err := os.Stat(p); err == nil && !info.IsDir() {
+                w.Header().Set("Content-Type", "application/zip")
+                w.Header().Set("Content-Disposition", "attachment; filename=ChatBox-updated.zip")
+                http.ServeFile(w, r, p)
+                return
+            }
+        }
+        http.Error(w, "Zip not found on server", http.StatusNotFound)
     })))
 
     // WebSocket endpoint expects ?username=XYZ from frontend after login
