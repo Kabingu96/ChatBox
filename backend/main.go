@@ -25,10 +25,32 @@ import (
 
 func enableCors(next http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        // Allow any origin so the app can be opened from multiple devices/networks
-        w.Header().Set("Access-Control-Allow-Origin", "*")
+        origin := r.Header.Get("Origin")
+        allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
+        if allowedOrigins == "" {
+            allowedOrigins = "http://localhost:3000,https://localhost:3000"
+        }
+        
+        // Check if origin is allowed
+        if origin != "" {
+            for _, allowed := range strings.Split(allowedOrigins, ",") {
+                if strings.TrimSpace(allowed) == origin {
+                    w.Header().Set("Access-Control-Allow-Origin", origin)
+                    break
+                }
+            }
+        }
+        
         w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-        w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+        w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Requested-With")
+        w.Header().Set("Access-Control-Allow-Credentials", "true")
+        
+        // Security headers
+        w.Header().Set("X-Content-Type-Options", "nosniff")
+        w.Header().Set("X-Frame-Options", "DENY")
+        w.Header().Set("X-XSS-Protection", "1; mode=block")
+        w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+        
         if r.Method == http.MethodOptions {
             w.WriteHeader(http.StatusOK)
             return
@@ -224,7 +246,9 @@ func (c *Client) readPump() {
     for {
         _, raw, err := c.conn.ReadMessage()
         if err != nil {
-            log.Println("read error:", err)
+            if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+            log.Printf("websocket error: %v", err)
+        }
             break
         }
 
@@ -272,7 +296,9 @@ func (c *Client) writePump() {
     defer c.conn.Close()
     for msg := range c.send {
         if err := c.conn.WriteMessage(websocket.TextMessage, msg); err != nil {
-            log.Println("write error:", err)
+            if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+            log.Printf("websocket write error: %v", err)
+        }
             break
         }
     }

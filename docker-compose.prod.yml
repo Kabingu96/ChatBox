@@ -9,16 +9,16 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-chatbox}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data_prod:/var/lib/postgresql/data
       - ./backend/migrations:/docker-entrypoint-initdb.d
-    networks:
-      - chatbox-network
-    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-chatbox} -d ${POSTGRES_DB:-chatbox}"]
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
+    networks:
+      - chatbox-network
 
   backend:
     build:
@@ -28,38 +28,39 @@ services:
     environment:
       PORT: 8080
       DATABASE_URL: postgres://${POSTGRES_USER:-chatbox}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-chatbox}?sslmode=require
-    expose:
-      - "8080"
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://yourdomain.com}
     depends_on:
       postgres:
         condition: service_healthy
-    networks:
-      - chatbox-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/"]
       interval: 30s
       timeout: 10s
       retries: 3
-
-  nginx:
-    image: nginx:alpine
-    container_name: chatbox-nginx
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./ssl:/etc/nginx/ssl:ro
-    depends_on:
-      - backend
     networks:
       - chatbox-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        REACT_APP_API_BASE: ${REACT_APP_API_BASE:-https://api.yourdomain.com}
+        REACT_APP_WS_BASE: ${REACT_APP_WS_BASE:-wss://api.yourdomain.com}
+    container_name: chatbox-frontend-prod
+    ports:
+      - "80:3000"
+      - "443:3000"
+    depends_on:
+      - backend
     restart: unless-stopped
+    networks:
+      - chatbox-network
+
+volumes:
+  postgres_data_prod:
 
 networks:
   chatbox-network:
     driver: bridge
-
-volumes:
-  postgres_data:
