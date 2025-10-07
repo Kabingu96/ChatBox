@@ -9,13 +9,15 @@ export default function ChatBoxContent({ username }) {
   const [editInput, setEditInput] = useState("");
   const endRef = useRef(null);
 
-  // Resolve backend base URL dynamically for multi-device/network use
+  // Resolve backend base URL with env overrides for production
   const isSecure = window.location.protocol === "https:";
   const httpProto = isSecure ? "https" : "http";
   const wsProto = isSecure ? "wss" : "ws";
   const host = window.location.hostname;
-  const backendHttp = `${httpProto}://${host}:8080`;
-  const backendWs = `${wsProto}://${host}:8080`;
+  const backendHttp =
+    process.env.REACT_APP_API_BASE || `${httpProto}://${host}:8080`;
+  const backendWs =
+    process.env.REACT_APP_WS_BASE || `${wsProto}://${host}:8080`;
 
   // Load dark mode preference from backend
   useEffect(() => {
