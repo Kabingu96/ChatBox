@@ -2,15 +2,15 @@
 
 # Build stage
 FROM golang:1.24 as builder
-WORKDIR /app
+WORKDIR /app/backend
 
 # Cache deps
-COPY go.mod go.sum ./
+COPY backend/go.mod backend/go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download
 
 # Copy source
-COPY . .
+COPY backend/ ./
 
 # Build
 RUN --mount=type=cache,target=/go/pkg/mod \
@@ -21,7 +21,7 @@ FROM gcr.io/distroless/base-debian12
 WORKDIR /app
 COPY --from=builder /server /app/server
 # include migrations for runtime execution
-COPY --from=builder /app/migrations /app/migrations
+COPY --from=builder /app/backend/migrations /app/migrations
 
 EXPOSE 8080
 ENV PORT=8080
