@@ -5,6 +5,14 @@ FROM node:18-alpine AS builder
 
 WORKDIR /build
 
+# Accept build arguments
+ARG REACT_APP_API_BASE
+ARG REACT_APP_WS_BASE
+
+# Set environment variables
+ENV REACT_APP_API_BASE=$REACT_APP_API_BASE
+ENV REACT_APP_WS_BASE=$REACT_APP_WS_BASE
+
 # Copy package files
 COPY package*.json ./
 RUN --mount=type=cache,target=/root/.npm \
