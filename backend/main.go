@@ -1,15 +1,23 @@
 package main
 
 import (
+    "context"
     "encoding/json"
+    "errors"
     "fmt"
     "log"
     "net/http"
+    "os"
+    "path/filepath"
+    "sort"
     "strconv"
+    "strings"
     "sync"
     "time"
 
     "github.com/gorilla/websocket"
+    "github.com/jackc/pgx/v5"
+    "github.com/jackc/pgx/v5/pgxpool"
     "golang.org/x/crypto/bcrypt"
 )
 
@@ -45,6 +53,10 @@ var (
     messagesList = []Message{}
     nextMessageID int64 = 1
 )
+
+// DB integration (optional): enabled when DATABASE_URL is set
+var dbPool *pgxpool.Pool
+var useDB bool
 
 // -------------------- WebSocket / Hub --------------------
 
@@ -116,6 +128,13 @@ func (h *Hub) run() {
 // -------------------- Message Store Helpers --------------------
 
 func saveMessage(m Message) int64 {
+    if useDB {
+        id, err := dbSaveMessage(context.Background(), m)
+        if err != nil {
+            log.Println("db save error:", err)
+        }
+        return id
+    }
     messagesMu.Lock()
     defer messagesMu.Unlock()
     m.ID = nextMessageID
@@ -125,6 +144,14 @@ func saveMessage(m Message) int64 {
 }
 
 func loadRecentMessages(limit int) []Message {
+    if useDB {
+        msgs, err := dbLoadRecentMessages(context.Background(), limit)
+        if err != nil {
+            log.Println("db load history error:", err)
+            return nil
+        }
+        return msgs
+    }
     messagesMu.RLock()
     defer messagesMu.RUnlock()
     if limit <= 0 || limit > len(messagesList) {
@@ -141,6 +168,13 @@ func loadRecentMessages(limit int) []Message {
 }
 
 func editMessageText(id int64, text string) bool {
+    if useDB {
+        if err := dbEditMessageText(context.Background(), id, text); err != nil {
+            log.Println("db edit error:", err)
+            return false
+        }
+        return true
+    }
     messagesMu.Lock()
     defer messagesMu.Unlock()
     for i := range messagesList {
@@ -153,6 +187,13 @@ func editMessageText(id int64, text string) bool {
 }
 
 func deleteMessageByID(id int64) bool {
+    if useDB {
+        if err := dbDeleteMessageByID(context.Background(), id); err != nil {
+            log.Println("db delete error:", err)
+            return false
+        }
+        return true
+    }
     messagesMu.Lock()
     defer messagesMu.Unlock()
     for i := range messagesList {
@@ -288,13 +329,23 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
         return
     }
 
+    // create user
+    hash, _ := bcrypt.GenerateFromPassword([]byte(u.Password), bcrypt.DefaultCost)
+    if useDB {
+        if err := dbRegisterUser(context.Background(), u.Username, hash); err != nil {
+            http.Error(w, "Username may already exist", http.StatusBadRequest)
+            return
+        }
+        w.WriteHeader(http.StatusOK)
+        w.Write([]byte("Registration successful"))
+        return
+    }
     usersMu.Lock()
     defer usersMu.Unlock()
     if _, exists := usersMap[u.Username]; exists {
         http.Error(w, "Username may already exist", http.StatusBadRequest)
         return
     }
-    hash, _ := bcrypt.GenerateFromPassword([]byte(u.Password), bcrypt.DefaultCost)
     usersMap[u.Username] = &storedUser{Username: u.Username, PasswordHash: hash}
     w.WriteHeader(http.StatusOK)
     w.Write([]byte("Registration successful"))
@@ -308,6 +359,21 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
     var u User
     if err := json.NewDecoder(r.Body).Decode(&u); err != nil {
         http.Error(w, "Invalid JSON", http.StatusBadRequest)
+        return
+    }
+    if useDB {
+        hash, err := dbGetUserPasswordHash(context.Background(), u.Username)
+        if err != nil {
+            http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+            return
+        }
+        if err := bcrypt.CompareHashAndPassword(hash, []byte(u.Password)); err != nil {
+            http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+            return
+        }
+        resp := map[string]string{"username": u.Username}
+        w.Header().Set("Content-Type", "application/json")
+        json.NewEncoder(w).Encode(resp)
         return
     }
     usersMu.RLock()
@@ -338,6 +404,21 @@ func getDarkModeHandler(w http.ResponseWriter, r *http.Request) {
         http.Error(w, "Username required", http.StatusBadRequest)
         return
     }
+    if useDB {
+        dm, ok, err := dbGetDarkMode(context.Background(), username)
+        if err != nil {
+            http.Error(w, "Server error", http.StatusInternalServerError)
+            return
+        }
+        if !ok {
+            http.Error(w, "User not found", http.StatusNotFound)
+            return
+        }
+        resp := map[string]bool{"darkMode": dm}
+        w.Header().Set("Content-Type", "application/json")
+        json.NewEncoder(w).Encode(resp)
+        return
+    }
     usersMu.RLock()
     su, ok := usersMap[username]
     usersMu.RUnlock()
@@ -361,6 +442,19 @@ func setDarkModeHandler(w http.ResponseWriter, r *http.Request) {
     }
     if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
         http.Error(w, "Invalid JSON", http.StatusBadRequest)
+        return
+    }
+    if useDB {
+        if err := dbSetDarkMode(context.Background(), payload.Username, payload.DarkMode); err != nil {
+            if strings.Contains(err.Error(), "not found") {
+                http.Error(w, "User not found", http.StatusNotFound)
+                return
+            }
+            http.Error(w, "Server error", http.StatusInternalServerError)
+            return
+        }
+        w.WriteHeader(http.StatusOK)
+        w.Write([]byte("Dark mode updated"))
         return
     }
     usersMu.Lock()
@@ -445,6 +539,11 @@ func deleteMessageHandler(hub *Hub, w http.ResponseWriter, r *http.Request) {
 // -------------------- Main --------------------
 
 func main() {
+    // Initialize DB if configured
+    if err := initDB(context.Background()); err != nil {
+        log.Println("DB init error:", err)
+    }
+
     hub := newHub()
     go hub.run()
 
@@ -486,6 +585,197 @@ func main() {
         serveWs(hub, username, w, r)
     })
 
-    fmt.Println("🚀 Server started on :8080")
-    log.Fatal(http.ListenAndServe(":8080", nil))
+    port := os.Getenv("PORT")
+    if port == "" {
+        port = "8080"
+    }
+    fmt.Println("🚀 Server started on :" + port)
+    log.Fatal(http.ListenAndServe(":"+port, nil))
+}
+
+// -------------------- DB Helpers --------------------
+
+func initDB(ctx context.Context) error {
+    dsn := os.Getenv("DATABASE_URL")
+    if strings.TrimSpace(dsn) == "" {
+        useDB = false
+        return nil
+    }
+    cfg, err := pgxpool.ParseConfig(dsn)
+    if err != nil {
+        return err
+    }
+    pool, err := pgxpool.NewWithConfig(ctx, cfg)
+    if err != nil {
+        return err
+    }
+    // test
+    if err := pool.Ping(ctx); err != nil {
+        return err
+    }
+    dbPool = pool
+    useDB = true
+    if err := runMigrations(ctx, dbPool, "migrations"); err != nil {
+        return err
+    }
+    return nil
+}
+
+func runMigrations(ctx context.Context, pool *pgxpool.Pool, dir string) error {
+    // find .sql files in dir and apply in name order
+    entries, err := os.ReadDir(dir)
+    if err != nil {
+        // If no migrations directory, skip
+        if os.IsNotExist(err) {
+            return nil
+        }
+        return err
+    }
+    files := make([]string, 0, len(entries))
+    for _, e := range entries {
+        if e.IsDir() {
+            continue
+        }
+        name := e.Name()
+        if strings.HasSuffix(strings.ToLower(name), ".sql") {
+            files = append(files, filepath.Join(dir, name))
+        }
+    }
+    sort.Strings(files)
+    for _, f := range files {
+        b, err := os.ReadFile(f)
+        if err != nil {
+            return err
+        }
+        sql := string(b)
+        sql = strings.TrimSpace(sql)
+        if sql == "" {
+            continue
+        }
+        if _, err := pool.Exec(ctx, sql); err != nil {
+            return fmt.Errorf("migration %s failed: %w", f, err)
+        }
+        log.Println("Applied migration:", f)
+    }
+    return nil
+}
+
+func dbSaveMessage(ctx context.Context, m Message) (int64, error) {
+    var id int64
+    // store server-side timestamp as now(); we still broadcast client-formatted timestamp in message
+    err := dbPool.QueryRow(ctx, `
+        INSERT INTO messages (username, text) VALUES ($1, $2)
+        RETURNING id
+    `, m.Username, m.Text).Scan(&id)
+    return id, err
+}
+
+func dbLoadRecentMessages(ctx context.Context, limit int) ([]Message, error) {
+    if limit <= 0 {
+        limit = 200
+    }
+    rows, err := dbPool.Query(ctx, `
+        SELECT id, username, text, timestamp
+        FROM messages
+        ORDER BY timestamp DESC
+        LIMIT $1
+    `, limit)
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
+    out := make([]Message, 0, limit)
+    for rows.Next() {
+        var (
+            id int64
+            username string
+            text string
+            ts time.Time
+        )
+        if err := rows.Scan(&id, &username, &text, &ts); err != nil {
+            return nil, err
+        }
+        out = append(out, Message{
+            ID: id,
+            Username: username,
+            Text: text,
+            Timestamp: ts.Format("2006-01-02 15:04:05 MST"),
+        })
+    }
+    // reverse to chronological ascending like in-memory version
+    for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
+        out[i], out[j] = out[j], out[i]
+    }
+    return out, rows.Err()
+}
+
+func dbEditMessageText(ctx context.Context, id int64, text string) error {
+    ct, err := dbPool.Exec(ctx, `UPDATE messages SET text=$1 WHERE id=$2`, text, id)
+    if err != nil {
+        return err
+    }
+    if ct.RowsAffected() == 0 {
+        return fmt.Errorf("not found")
+    }
+    return nil
+}
+
+func dbDeleteMessageByID(ctx context.Context, id int64) error {
+    ct, err := dbPool.Exec(ctx, `DELETE FROM messages WHERE id=$1`, id)
+    if err != nil {
+        return err
+    }
+    if ct.RowsAffected() == 0 {
+        return fmt.Errorf("not found")
+    }
+    return nil
+}
+
+func dbRegisterUser(ctx context.Context, username string, passwordHash []byte) error {
+    _, err := dbPool.Exec(ctx, `
+        INSERT INTO users (username, password_hash) VALUES ($1, $2)
+        ON CONFLICT (username) DO NOTHING
+    `, username, passwordHash)
+    if err != nil {
+        return err
+    }
+    // Verify created
+    var exists bool
+    _ = dbPool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM users WHERE username=$1)`, username).Scan(&exists)
+    if !exists {
+        return fmt.Errorf("username may already exist")
+    }
+    return nil
+}
+
+func dbGetUserPasswordHash(ctx context.Context, username string) ([]byte, error) {
+    var hash []byte
+    err := dbPool.QueryRow(ctx, `SELECT password_hash FROM users WHERE username=$1`, username).Scan(&hash)
+    if err != nil {
+        return nil, err
+    }
+    return hash, nil
+}
+
+func dbGetDarkMode(ctx context.Context, username string) (bool, bool, error) {
+    var dm bool
+    err := dbPool.QueryRow(ctx, `SELECT dark_mode FROM users WHERE username=$1`, username).Scan(&dm)
+    if err != nil {
+        if errors.Is(err, pgx.ErrNoRows) {
+            return false, false, nil
+        }
+        return false, false, err
+    }
+    return dm, true, nil
+}
+
+func dbSetDarkMode(ctx context.Context, username string, dark bool) error {
+    ct, err := dbPool.Exec(ctx, `UPDATE users SET dark_mode=$1 WHERE username=$2`, dark, username)
+    if err != nil {
+        return err
+    }
+    if ct.RowsAffected() == 0 {
+        return fmt.Errorf("not found")
+    }
+    return nil
 }
