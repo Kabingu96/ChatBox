@@ -32,15 +32,16 @@ npm start
 
 ## 🌐 Deployment Options
 
-### Best Option: Vercel + Railway/Render
-**Easiest and most cost-effective for small to medium apps**
+### Best Option: Vercel + Render (FREE)
+**Easiest and most cost-effective - FREE for small apps**
 
-1. **Backend on Railway/Render:**
-   - Connect your GitHub repo
-   - Set environment variables:
-     - `DATABASE_URL`: Your PostgreSQL connection string
-     - `ALLOWED_ORIGINS`: Your frontend domain
-   - Deploy from `/backend` directory
+1. **Backend on Render (FREE):**
+   - Go to render.com → New → Web Service
+   - Connect GitHub repo, set Root Directory: `backend`
+   - Build Command: `go build -o main .`
+   - Start Command: `./main`
+   - Add PostgreSQL database (FREE 90 days)
+   - Environment variables auto-configured via `render.yaml`
 
 2. **Frontend on Vercel:**
    - Connect your GitHub repo
@@ -50,9 +51,10 @@ npm start
      - `REACT_APP_WS_BASE`: Your backend WebSocket URL
    - Deploy
 
-### Alternative: AWS/GCP/Azure
-- Use container services (ECS, Cloud Run, Container Apps)
-- Deploy using the provided Docker configurations
+### Alternative Options:
+- **Docker**: Use `docker-compose.prod.yml` for self-hosting
+- **AWS/GCP/Azure**: Container services for enterprise scale
+- **Fly.io**: Similar to Render, good performance
 
 ## 🔧 Configuration
 
@@ -113,9 +115,14 @@ docker-compose -f docker-compose.prod.yml build
 
 ## 🚀 Deployment Recommendations
 
-1. **Small Scale (< 1000 users)**: Vercel + Railway/Render
+1. **Small Scale (< 1000 users)**: Vercel + Render (FREE)
 2. **Medium Scale (< 10k users)**: AWS ECS + RDS
 3. **Large Scale (10k+ users)**: Kubernetes + managed database
+
+## 💰 Cost Breakdown
+- **Vercel**: FREE (hobby plan)
+- **Render**: FREE backend + FREE database (90 days)
+- **Total**: **$0/month** for first 3 months, then $7/month
 
 ## 📈 Scaling Considerations
 

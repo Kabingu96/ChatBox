@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: chatbox-backend
+    env: go
+    buildCommand: cd backend && go build -o main .
+    startCommand: cd backend && ./main
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: chatbox-db
+          property: connectionString
+      - key: ALLOWED_ORIGINS
+        value: https://your-app.vercel.app
+
+databases:
+  - name: chatbox-db
+    databaseName: chatbox
+    user: chatbox
