@@ -391,20 +391,18 @@ export default function ChatBoxContent({ username, onLogout }) {
     minWidth: 0,
   };
   const sidebarStyle = {
-    width: isMobile ? "280px" : "220px",
+    width: "280px",
     backgroundColor: darkMode ? "#0b1220" : "#ffffff",
-    borderLeft: `1px solid ${darkMode ? "#1f2937" : "#e5e7eb"}`,
+    borderRight: `1px solid ${darkMode ? "#1f2937" : "#e5e7eb"}`,
     padding: "16px",
     overflowY: "auto",
-    ...(isMobile && {
-      position: "fixed",
-      top: 0,
-      right: showSidebar ? 0 : "-280px",
-      height: "100vh",
-      zIndex: 1000,
-      transition: "right 0.3s ease",
-      boxShadow: showSidebar ? "-4px 0 8px rgba(0,0,0,0.1)" : "none",
-    }),
+    position: "fixed",
+    top: 0,
+    left: showSidebar ? 0 : "-280px",
+    height: "100vh",
+    zIndex: 1000,
+    transition: "left 0.3s ease",
+    boxShadow: showSidebar ? "4px 0 8px rgba(0,0,0,0.1)" : "none",
   };
   const headerStyle = {
     display: "flex",
@@ -457,22 +455,20 @@ export default function ChatBoxContent({ username, onLogout }) {
       <div style={chatContainerStyle}>
       <div style={headerStyle}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          {isMobile && (
-            <button
-              onClick={() => setShowSidebar(!showSidebar)}
-              style={{
-                padding: "6px 8px",
-                borderRadius: 6,
-                border: "none",
-                backgroundColor: darkMode ? "#374151" : "#e5e7eb",
-                color: darkMode ? "#fff" : "#111827",
-                cursor: "pointer",
-                fontSize: "14px",
-              }}
-            >
-              ☰
-            </button>
-          )}
+          <button
+            onClick={() => setShowSidebar(!showSidebar)}
+            style={{
+              padding: "6px 8px",
+              borderRadius: 6,
+              border: "none",
+              backgroundColor: darkMode ? "#374151" : "#e5e7eb",
+              color: darkMode ? "#fff" : "#111827",
+              cursor: "pointer",
+              fontSize: "14px",
+            }}
+          >
+            ☰
+          </button>
           <div>
             <strong style={{ fontSize: isMobile ? 16 : 18 }}>ChatBox</strong>
             <div style={{ fontSize: isMobile ? 11 : 12, opacity: 0.8 }}>#{currentRoom} • {username}</div>
@@ -790,7 +786,7 @@ export default function ChatBoxContent({ username, onLogout }) {
         <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBC13yO/eizEIHWq+8+OWT" type="audio/wav" />
       </audio>
       
-      {isMobile && showSidebar && (
+      {showSidebar && (
         <div
           style={{
             position: "fixed",
@@ -808,25 +804,23 @@ export default function ChatBoxContent({ username, onLogout }) {
         <h3 style={{ margin: "0 0 12px 0", fontSize: "14px", fontWeight: "600" }}>
           Rooms
         </h3>
-        {isMobile && (
-          <button
-            onClick={() => setShowSidebar(false)}
-            style={{
-              position: "absolute",
-              top: "12px",
-              right: "12px",
-              padding: "4px 8px",
-              borderRadius: 4,
-              border: "none",
-              backgroundColor: darkMode ? "#374151" : "#e5e7eb",
-              color: darkMode ? "#fff" : "#111827",
-              cursor: "pointer",
-              fontSize: "12px",
-            }}
-          >
-            ✕
-          </button>
-        )}
+        <button
+          onClick={() => setShowSidebar(false)}
+          style={{
+            position: "absolute",
+            top: "12px",
+            right: "12px",
+            padding: "4px 8px",
+            borderRadius: 4,
+            border: "none",
+            backgroundColor: darkMode ? "#374151" : "#e5e7eb",
+            color: darkMode ? "#fff" : "#111827",
+            cursor: "pointer",
+            fontSize: "12px",
+          }}
+        >
+          ✕
+        </button>
         {availableRooms.map((room) => (
           <div
             key={room}
