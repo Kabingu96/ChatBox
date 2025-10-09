@@ -41,6 +41,7 @@ export default function ChatBoxContent({ username, onLogout }) {
   const [currentRoom, setCurrentRoom] = useState('general');
   const [availableRooms] = useState(['general', 'random', 'tech', 'gaming']);
   const [showSidebar, setShowSidebar] = useState(false);
+  const [replyingTo, setReplyingTo] = useState(null);
   const endRef = useRef(null);
   const audioRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -113,6 +114,7 @@ export default function ChatBoxContent({ username, onLogout }) {
             fileType: m.fileType,
             fileName: m.fileName,
             status: "delivered",
+            replyTo: m.replyTo,
           }));
           setMessages((prev) => [...prev, ...hist]);
           return;
@@ -131,6 +133,7 @@ export default function ChatBoxContent({ username, onLogout }) {
             fileType: payload.fileType,
             fileName: payload.fileName,
             status: "delivered",
+            replyTo: payload.replyTo,
           };
           setMessages((prev) => [...prev, incoming]);
           
@@ -239,11 +242,15 @@ export default function ChatBoxContent({ username, onLogout }) {
       fileType: null,
       fileName: null,
       status: "sending",
+      replyTo: replyingTo,
     };
+    
+    // Clear reply state
+    setReplyingTo(null);
     setMessages((prev) => [...prev, local]);
 
     // send to server
-    ws.send(JSON.stringify({ username, text: textTrimmed, timestamp, clientId: local.id, room: currentRoom }));
+    ws.send(JSON.stringify({ username, text: textTrimmed, timestamp, clientId: local.id, room: currentRoom, replyTo: replyingTo }));
     setInput("");
   };
 
@@ -335,6 +342,7 @@ export default function ChatBoxContent({ username, onLogout }) {
         fileType: result.fileType,
         fileName: result.fileName,
         status: "sending",
+        replyTo: replyingTo,
       };
       
       setMessages((prev) => [...prev, fileMessage]);
@@ -349,6 +357,7 @@ export default function ChatBoxContent({ username, onLogout }) {
           fileType: result.fileType,
           fileName: result.fileName,
           room: currentRoom,
+          replyTo: replyingTo,
         }));
       }
     } catch (err) {
@@ -659,6 +668,20 @@ export default function ChatBoxContent({ username, onLogout }) {
                   )}
                   <div style={nameStyle}>{isMine ? "You" : m.username}</div>
                 </div>
+                
+                {m.replyTo && (
+                  <div style={{
+                    backgroundColor: darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)",
+                    padding: "4px 8px",
+                    borderRadius: 6,
+                    marginBottom: 6,
+                    fontSize: 11,
+                    opacity: 0.8,
+                    borderLeft: `2px solid ${darkMode ? "#0ea5a4" : "#2563eb"}`,
+                  }}>
+                    ↳ Replying to: {m.replyTo.text ? m.replyTo.text.substring(0, 50) + (m.replyTo.text.length > 50 ? '...' : '') : 'File'}
+                  </div>
+                )}
 
                 {editingId === m.id ? (
                   <>
@@ -770,22 +793,66 @@ export default function ChatBoxContent({ username, onLogout }) {
                   ))}
                 </div>
 
-                {isMine && editingId !== m.id && (
-                  <div style={{ marginTop: 8, display: "flex", gap: 4 }}>
-                    <button
-                      onClick={() => {
-                        setEditingId(m.id);
-                        setEditInput(m.text);
-                      }}
-                      style={btnStyle}
-                    >
-                      Edit
-                    </button>
-                    <button onClick={() => deleteMessage(m.id)} style={btnStyle}>
-                      Delete
-                    </button>
-                  </div>
-                )}
+                <div style={{ marginTop: 6, display: "flex", gap: 4, flexWrap: "wrap" }}>
+                  <button
+                    onClick={() => setReplyingTo({ id: m.id, username: m.username, text: m.text })}
+                    style={{
+                      padding: "2px 6px",
+                      borderRadius: 4,
+                      border: "none",
+                      backgroundColor: "transparent",
+                      color: darkMode ? "#9ca3af" : "#6b7280",
+                      fontSize: 10,
+                      cursor: "pointer",
+                      opacity: 0.7,
+                    }}
+                    onMouseEnter={(e) => e.target.style.opacity = 1}
+                    onMouseLeave={(e) => e.target.style.opacity = 0.7}
+                  >
+                    ↳ Reply
+                  </button>
+                  {isMine && editingId !== m.id && (
+                    <>
+                      <button
+                        onClick={() => {
+                          setEditingId(m.id);
+                          setEditInput(m.text);
+                        }}
+                        style={{
+                          padding: "2px 6px",
+                          borderRadius: 4,
+                          border: "none",
+                          backgroundColor: "transparent",
+                          color: darkMode ? "#9ca3af" : "#6b7280",
+                          fontSize: 10,
+                          cursor: "pointer",
+                          opacity: 0.7,
+                        }}
+                        onMouseEnter={(e) => e.target.style.opacity = 1}
+                        onMouseLeave={(e) => e.target.style.opacity = 0.7}
+                      >
+                        Edit
+                      </button>
+                      <button 
+                        onClick={() => deleteMessage(m.id)}
+                        style={{
+                          padding: "2px 6px",
+                          borderRadius: 4,
+                          border: "none",
+                          backgroundColor: "transparent",
+                          color: darkMode ? "#9ca3af" : "#6b7280",
+                          fontSize: 10,
+                          cursor: "pointer",
+                          opacity: 0.7,
+                        }}
+                        onMouseEnter={(e) => e.target.style.opacity = 1}
+                        onMouseLeave={(e) => e.target.style.opacity = 0.7}
+                      >
+                        Delete
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           );
@@ -806,6 +873,34 @@ export default function ChatBoxContent({ username, onLogout }) {
         <div ref={endRef} />
       </div>
 
+      {replyingTo && (
+        <div style={{
+          padding: "8px 12px",
+          backgroundColor: darkMode ? "#1f2937" : "#f3f4f6",
+          borderTop: `1px solid ${darkMode ? "#374151" : "#d1d5db"}`,
+          fontSize: 12,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}>
+          <span>↳ Replying to <strong>{replyingTo.username}</strong>: {replyingTo.text ? replyingTo.text.substring(0, 40) + (replyingTo.text.length > 40 ? '...' : '') : 'File'}</span>
+          <button
+            onClick={() => setReplyingTo(null)}
+            style={{
+              padding: "2px 6px",
+              borderRadius: 4,
+              border: "none",
+              backgroundColor: darkMode ? "#374151" : "#e5e7eb",
+              color: darkMode ? "#fff" : "#111827",
+              cursor: "pointer",
+              fontSize: 10,
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+      
       <div style={inputBarStyle}>
         <input
           type="text"
