@@ -116,9 +116,6 @@ export default function ChatBoxContent({ username, onLogout }) {
             fileUrl: payload.fileUrl,
             fileType: payload.fileType,
             fileName: payload.fileName,
-            fileUrl: payload.fileUrl,
-            fileType: payload.fileType,
-            fileName: payload.fileName,
           };
           setMessages((prev) => [...prev, incoming]);
           
@@ -195,6 +192,14 @@ export default function ChatBoxContent({ username, onLogout }) {
 
     return () => clearTimeout(timeoutId);
   }, [input, ws, username]);
+
+  // Filter messages based on search query
+  const filteredMessages = searchQuery.trim() 
+    ? messages.filter(m => 
+        m.text.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        m.username.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : messages;
 
   const sendMessage = () => {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
@@ -362,14 +367,6 @@ export default function ChatBoxContent({ username, onLogout }) {
       sendMessage();
     }
   };
-
-  // Filter messages based on search query
-  const filteredMessages = searchQuery.trim() 
-    ? messages.filter(m => 
-        m.text.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        m.username.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : messages;
 
   const containerStyle = {
     display: "flex",
