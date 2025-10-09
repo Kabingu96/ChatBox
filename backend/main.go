@@ -33,10 +33,14 @@ func enableCors(next http.Handler) http.Handler {
         
         // Check if origin is allowed
         if origin != "" {
-            for _, allowed := range strings.Split(allowedOrigins, ",") {
-                if strings.TrimSpace(allowed) == origin {
-                    w.Header().Set("Access-Control-Allow-Origin", origin)
-                    break
+            if allowedOrigins == "*" {
+                w.Header().Set("Access-Control-Allow-Origin", "*")
+            } else {
+                for _, allowed := range strings.Split(allowedOrigins, ",") {
+                    if strings.TrimSpace(allowed) == origin {
+                        w.Header().Set("Access-Control-Allow-Origin", origin)
+                        break
+                    }
                 }
             }
         }
