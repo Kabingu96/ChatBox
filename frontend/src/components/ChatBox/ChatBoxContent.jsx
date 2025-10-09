@@ -42,6 +42,7 @@ export default function ChatBoxContent({ username, onLogout }) {
   const [availableRooms] = useState(['general', 'random', 'tech', 'gaming']);
   const [showSidebar, setShowSidebar] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const endRef = useRef(null);
   const audioRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -393,6 +394,20 @@ export default function ChatBoxContent({ username, onLogout }) {
       sendMessage();
     }
   };
+
+  const insertEmoji = (emoji) => {
+    setInput(prev => prev + emoji);
+    setShowEmojiPicker(false);
+  };
+
+  const commonEmojis = [
+    '😀', '😂', '🤣', '😊', '😍', '🥰', '😘', '😋',
+    '😎', '🤔', '😴', '😢', '😭', '😡', '🤯', '😱',
+    '👍', '👎', '👏', '🙌', '👋', '🤝', '💪', '🙏',
+    '❤️', '💕', '💖', '💯', '🔥', '⭐', '✨', '🎉',
+    '🎊', '🎈', '🎁', '🍕', '🍔', '🍟', '☕', '🍺',
+    '🌟', '🌈', '🌸', '🌺', '🎵', '🎶', '⚡', '💎'
+  ];
 
 
 
@@ -771,8 +786,8 @@ export default function ChatBoxContent({ username, onLogout }) {
                 )}
 
                 {/* Quick reaction buttons */}
-                <div style={{ marginTop: 4, display: "flex", gap: 2 }}>
-                  {["👍", "❤️", "😂"].map(emoji => (
+                <div style={{ marginTop: 4, display: "flex", gap: 2, flexWrap: "wrap" }}>
+                  {["👍", "❤️", "😂", "🔥", "🎉"].map(emoji => (
                     <button
                       key={emoji}
                       onClick={() => addReaction(m.id, emoji)}
@@ -902,14 +917,62 @@ export default function ChatBoxContent({ username, onLogout }) {
       )}
       
       <div style={inputBarStyle}>
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder="Type your message..."
-          style={inputStyle}
-        />
+        <div style={{ position: "relative", flex: 1 }}>
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={onKeyDown}
+            placeholder="Type your message..."
+            style={inputStyle}
+          />
+          {showEmojiPicker && (
+            <div style={{
+              position: "absolute",
+              bottom: "100%",
+              left: 0,
+              right: 0,
+              backgroundColor: darkMode ? "#1f2937" : "#ffffff",
+              border: `1px solid ${darkMode ? "#374151" : "#d1d5db"}`,
+              borderRadius: 8,
+              padding: "12px",
+              marginBottom: 8,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+              zIndex: 1000,
+              maxHeight: "200px",
+              overflowY: "auto",
+            }}>
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(8, 1fr)",
+                gap: "4px",
+              }}>
+                {commonEmojis.map((emoji, index) => (
+                  <button
+                    key={index}
+                    onClick={() => insertEmoji(emoji)}
+                    style={{
+                      padding: "6px",
+                      border: "none",
+                      backgroundColor: "transparent",
+                      borderRadius: 4,
+                      cursor: "pointer",
+                      fontSize: 18,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      transition: "background-color 0.2s",
+                    }}
+                    onMouseEnter={(e) => e.target.style.backgroundColor = darkMode ? "#374151" : "#f3f4f6"}
+                    onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
         <input
           type="file"
           ref={fileInputRef}
@@ -917,6 +980,16 @@ export default function ChatBoxContent({ username, onLogout }) {
           style={{ display: 'none' }}
           accept="image/*,application/pdf,.txt,.doc,.docx"
         />
+        <button
+          onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+          style={{
+            ...btnStyle,
+            backgroundColor: showEmojiPicker ? (darkMode ? '#0ea5a4' : '#2563eb') : (darkMode ? '#6b7280' : '#9ca3af'),
+            padding: isMobile ? "8px 10px" : "10px 12px",
+          }}
+        >
+          😀
+        </button>
         <button 
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
