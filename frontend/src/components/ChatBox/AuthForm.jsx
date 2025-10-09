@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { apiRequest } from "../../api";
 
 export default function AuthForm({ setUsername }) {
@@ -9,6 +9,14 @@ export default function AuthForm({ setUsername }) {
   const [loading, setLoading] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const usernameRef = useRef(null);
+
+  // Auto-focus username input on mount
+  useEffect(() => {
+    if (usernameRef.current) {
+      usernameRef.current.focus();
+    }
+  }, []);
 
   // Detect system dark mode preference
   useEffect(() => {
@@ -169,6 +177,7 @@ export default function AuthForm({ setUsername }) {
         
         <form onSubmit={handleSubmit}>
           <input
+            ref={usernameRef}
             type="text"
             placeholder="Username"
             value={usernameInput}
