@@ -31,6 +31,7 @@ export default function ChatBoxContent({ username, onLogout }) {
   const [uploading, setUploading] = useState(false);
   const [currentRoom, setCurrentRoom] = useState('general');
   const [availableRooms] = useState(['general', 'random', 'tech', 'gaming']);
+  const [showSidebar, setShowSidebar] = useState(false);
   const endRef = useRef(null);
   const audioRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -373,42 +374,57 @@ export default function ChatBoxContent({ username, onLogout }) {
 
 
 
+  const isMobile = window.innerWidth <= 768;
+  
   const containerStyle = {
     display: "flex",
     height: "100vh",
     backgroundColor: darkMode ? "#0f1720" : "#f3f4f6",
     color: darkMode ? "#e5e7eb" : "#0f1720",
     fontFamily: "Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial",
+    position: "relative",
   };
   const chatContainerStyle = {
     display: "flex",
     flexDirection: "column",
     flex: 1,
+    minWidth: 0,
   };
   const sidebarStyle = {
-    width: "220px",
+    width: isMobile ? "280px" : "220px",
     backgroundColor: darkMode ? "#0b1220" : "#ffffff",
     borderLeft: `1px solid ${darkMode ? "#1f2937" : "#e5e7eb"}`,
     padding: "16px",
     overflowY: "auto",
+    ...(isMobile && {
+      position: "fixed",
+      top: 0,
+      right: showSidebar ? 0 : "-280px",
+      height: "100vh",
+      zIndex: 1000,
+      transition: "right 0.3s ease",
+      boxShadow: showSidebar ? "-4px 0 8px rgba(0,0,0,0.1)" : "none",
+    }),
   };
   const headerStyle = {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: "12px",
+    padding: isMobile ? "8px" : "12px",
     borderBottom: `1px solid ${darkMode ? "#1f2937" : "#e5e7eb"}`,
+    flexWrap: isMobile ? "wrap" : "nowrap",
+    gap: isMobile ? "8px" : "0",
   };
   const messagesWrapStyle = {
     flex: 1,
-    padding: "16px",
+    padding: isMobile ? "8px" : "16px",
     overflowY: "auto",
     backgroundColor: darkMode ? "#0b1220" : "#ffffff",
   };
   const inputBarStyle = {
     display: "flex",
-    gap: "10px",
-    padding: "12px",
+    gap: isMobile ? "6px" : "10px",
+    padding: isMobile ? "8px" : "12px",
     borderTop: `1px solid ${darkMode ? "#1f2937" : "#e5e7eb"}`,
     alignItems: "center",
     backgroundColor: darkMode ? "#071018" : "#fafafa",
@@ -436,11 +452,29 @@ export default function ChatBoxContent({ username, onLogout }) {
     <div style={containerStyle}>
       <div style={chatContainerStyle}>
       <div style={headerStyle}>
-        <div>
-          <strong style={{ fontSize: 18 }}>ChatBox</strong>
-          <div style={{ fontSize: 12, opacity: 0.8 }}>#{currentRoom} • {username}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          {isMobile && (
+            <button
+              onClick={() => setShowSidebar(!showSidebar)}
+              style={{
+                padding: "6px 8px",
+                borderRadius: 6,
+                border: "none",
+                backgroundColor: darkMode ? "#374151" : "#e5e7eb",
+                color: darkMode ? "#fff" : "#111827",
+                cursor: "pointer",
+                fontSize: "14px",
+              }}
+            >
+              ☰
+            </button>
+          )}
+          <div>
+            <strong style={{ fontSize: isMobile ? 16 : 18 }}>ChatBox</strong>
+            <div style={{ fontSize: isMobile ? 11 : 12, opacity: 0.8 }}>#{currentRoom} • {username}</div>
+          </div>
         </div>
-        <div style={{ display: "flex", gap: "8px" }}>
+        <div style={{ display: "flex", gap: isMobile ? "4px" : "8px", flexWrap: "wrap" }}>
           <button
             onClick={async () => {
               const newMode = !darkMode;
@@ -456,12 +490,13 @@ export default function ChatBoxContent({ username, onLogout }) {
               }
             }}
             style={{
-              padding: "6px 10px",
+              padding: isMobile ? "4px 6px" : "6px 10px",
               borderRadius: 8,
               border: "1px solid transparent",
               backgroundColor: darkMode ? "#111827" : "#e5e7eb",
               color: darkMode ? "#fff" : "#111827",
               cursor: "pointer",
+              fontSize: isMobile ? "11px" : "14px",
             }}
           >
             {darkMode ? "Light Mode" : "Dark Mode"}
@@ -475,7 +510,7 @@ export default function ChatBoxContent({ username, onLogout }) {
               }
             }}
             style={{
-              padding: "6px 10px",
+              padding: isMobile ? "4px 6px" : "6px 10px",
               borderRadius: 8,
               border: "1px solid transparent",
               backgroundColor: notificationsEnabled ? (darkMode ? "#059669" : "#10b981") : (darkMode ? "#6b7280" : "#9ca3af"),
@@ -489,7 +524,7 @@ export default function ChatBoxContent({ username, onLogout }) {
           <button
             onClick={() => setShowSearch(!showSearch)}
             style={{
-              padding: "6px 10px",
+              padding: isMobile ? "4px 6px" : "6px 10px",
               borderRadius: 8,
               border: "1px solid transparent",
               backgroundColor: showSearch ? (darkMode ? "#0ea5a4" : "#2563eb") : (darkMode ? "#6b7280" : "#9ca3af"),
@@ -503,12 +538,13 @@ export default function ChatBoxContent({ username, onLogout }) {
           <button
             onClick={onLogout}
             style={{
-              padding: "6px 10px",
+              padding: isMobile ? "4px 6px" : "6px 10px",
               borderRadius: 8,
               border: "1px solid transparent",
               backgroundColor: darkMode ? "#dc2626" : "#ef4444",
               color: "#fff",
               cursor: "pointer",
+              fontSize: isMobile ? "11px" : "14px",
             }}
           >
             Logout
@@ -562,7 +598,7 @@ export default function ChatBoxContent({ username, onLogout }) {
             color: darkMode ? "#fff" : "#111827",
             padding: "8px 12px",
             borderRadius: 12,
-            maxWidth: "72%",
+            maxWidth: isMobile ? "85%" : "72%",
             boxShadow: isMine ? "0 3px 8px rgba(2,6,23,0.2)" : "0 1px 3px rgba(2,6,23,0.06)",
           };
           const nameStyle = { fontSize: 12, fontWeight: 700, marginBottom: 4, opacity: 0.9 };
@@ -596,8 +632,8 @@ export default function ChatBoxContent({ username, onLogout }) {
                             src={`${backendHttp}${m.fileUrl}`}
                             alt={m.fileName}
                             style={{
-                              maxWidth: '200px',
-                              maxHeight: '200px',
+                              maxWidth: isMobile ? '150px' : '200px',
+                              maxHeight: isMobile ? '150px' : '200px',
                               borderRadius: 8,
                               cursor: 'pointer'
                             }}
@@ -747,10 +783,43 @@ export default function ChatBoxContent({ username, onLogout }) {
         <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBC13yO/eizEIHWq+8+OWT" type="audio/wav" />
       </audio>
       
+      {isMobile && showSidebar && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            zIndex: 999,
+          }}
+          onClick={() => setShowSidebar(false)}
+        />
+      )}
       <div style={sidebarStyle}>
         <h3 style={{ margin: "0 0 12px 0", fontSize: "14px", fontWeight: "600" }}>
           Rooms
         </h3>
+        {isMobile && (
+          <button
+            onClick={() => setShowSidebar(false)}
+            style={{
+              position: "absolute",
+              top: "12px",
+              right: "12px",
+              padding: "4px 8px",
+              borderRadius: 4,
+              border: "none",
+              backgroundColor: darkMode ? "#374151" : "#e5e7eb",
+              color: darkMode ? "#fff" : "#111827",
+              cursor: "pointer",
+              fontSize: "12px",
+            }}
+          >
+            ✕
+          </button>
+        )}
         {availableRooms.map((room) => (
           <div
             key={room}
