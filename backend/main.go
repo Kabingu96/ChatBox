@@ -517,6 +517,27 @@ type User struct {
     Password string `json:"password"`
 }
 
+type Room struct {
+    ID          int64  `json:"id"`
+    Name        string `json:"name"`
+    Description string `json:"description"`
+    Creator     string `json:"creator"`
+    IsPrivate   bool   `json:"isPrivate"`
+    CreatedAt   string `json:"createdAt"`
+}
+
+type CreateRoomRequest struct {
+    Name        string `json:"name"`
+    Description string `json:"description"`
+    Password    string `json:"password,omitempty"`
+    IsPrivate   bool   `json:"isPrivate"`
+}
+
+type JoinRoomRequest struct {
+    RoomName string `json:"roomName"`
+    Password string `json:"password,omitempty"`
+}
+
 func registerHandler(w http.ResponseWriter, r *http.Request) {
     if r.Method != http.MethodPost {
         http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -778,6 +799,17 @@ func main() {
         }
     })))
 
+    // Room management endpoints
+    http.Handle("/rooms/list", enableCors(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        listRoomsHandler(w, r)
+    })))
+    http.Handle("/rooms/create", enableCors(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        createRoomHandler(w, r)
+    })))
+    http.Handle("/rooms/join", enableCors(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        joinRoomHandler(w, r)
+    })))
+
     // File upload endpoint
     http.Handle("/upload", enableCors(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
         if r.Method != http.MethodPost {
@@ -883,6 +915,13 @@ func main() {
         if room == "" {
             room = "general" // Default room
         }
+        
+        // Validate room exists (for private rooms, password check should be done via /rooms/join first)
+        if _, err := dbGetRoom(context.Background(), room); err != nil {
+            http.Error(w, "Room not found", http.StatusNotFound)
+            return
+        }
+        
         serveWs(hub, username, room, w, r)
     })
 
@@ -1080,4 +1119,202 @@ func dbSetDarkMode(ctx context.Context, username string, dark bool) error {
         return fmt.Errorf("not found")
     }
     return nil
+}
+
+// -------------------- Room Management --------------------
+
+func listRoomsHandler(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodGet {
+        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+        return
+    }
+    
+    rooms, err := dbListRooms(context.Background())
+    if err != nil {
+        http.Error(w, "Failed to load rooms", http.StatusInternalServerError)
+        return
+    }
+    
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(rooms)
+}
+
+func createRoomHandler(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodPost {
+        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+        return
+    }
+    
+    var req CreateRoomRequest
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        http.Error(w, "Invalid JSON", http.StatusBadRequest)
+        return
+    }
+    
+    username := r.Header.Get("X-Username")
+    if username == "" {
+        http.Error(w, "Username required", http.StatusBadRequest)
+        return
+    }
+    
+    if req.Name == "" {
+        http.Error(w, "Room name required", http.StatusBadRequest)
+        return
+    }
+    
+    var passwordHash []byte
+    if req.IsPrivate && req.Password != "" {
+        hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+        if err != nil {
+            http.Error(w, "Password hashing failed", http.StatusInternalServerError)
+            return
+        }
+        passwordHash = hash
+    }
+    
+    room, err := dbCreateRoom(context.Background(), req.Name, req.Description, username, passwordHash, req.IsPrivate)
+    if err != nil {
+        if strings.Contains(err.Error(), "already exists") {
+            http.Error(w, "Room name already exists", http.StatusConflict)
+            return
+        }
+        http.Error(w, "Failed to create room", http.StatusInternalServerError)
+        return
+    }
+    
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(room)
+}
+
+func joinRoomHandler(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodPost {
+        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+        return
+    }
+    
+    var req JoinRoomRequest
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        http.Error(w, "Invalid JSON", http.StatusBadRequest)
+        return
+    }
+    
+    if req.RoomName == "" {
+        http.Error(w, "Room name required", http.StatusBadRequest)
+        return
+    }
+    
+    room, err := dbGetRoom(context.Background(), req.RoomName)
+    if err != nil {
+        http.Error(w, "Room not found", http.StatusNotFound)
+        return
+    }
+    
+    if room.IsPrivate && len(room.PasswordHash) > 0 {
+        if req.Password == "" {
+            http.Error(w, "Password required for private room", http.StatusUnauthorized)
+            return
+        }
+        if err := bcrypt.CompareHashAndPassword(room.PasswordHash, []byte(req.Password)); err != nil {
+            http.Error(w, "Invalid password", http.StatusUnauthorized)
+            return
+        }
+    }
+    
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "Joined room successfully"})
+}
+
+func dbListRooms(ctx context.Context) ([]Room, error) {
+    if !useDB {
+        // Return default rooms for in-memory mode
+        return []Room{
+            {ID: 1, Name: "general", Description: "General discussion", Creator: "system", IsPrivate: false},
+            {ID: 2, Name: "random", Description: "Random topics", Creator: "system", IsPrivate: false},
+            {ID: 3, Name: "tech", Description: "Technology discussions", Creator: "system", IsPrivate: false},
+            {ID: 4, Name: "gaming", Description: "Gaming discussions", Creator: "system", IsPrivate: false},
+        }, nil
+    }
+    
+    rows, err := dbPool.Query(ctx, `
+        SELECT id, name, description, creator, is_private, created_at
+        FROM rooms
+        ORDER BY created_at ASC
+    `)
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
+    
+    var rooms []Room
+    for rows.Next() {
+        var room Room
+        var createdAt time.Time
+        if err := rows.Scan(&room.ID, &room.Name, &room.Description, &room.Creator, &room.IsPrivate, &createdAt); err != nil {
+            return nil, err
+        }
+        room.CreatedAt = createdAt.Format("2006-01-02 15:04:05")
+        rooms = append(rooms, room)
+    }
+    
+    return rooms, rows.Err()
+}
+
+func dbCreateRoom(ctx context.Context, name, description, creator string, passwordHash []byte, isPrivate bool) (*Room, error) {
+    if !useDB {
+        return nil, fmt.Errorf("database required for room creation")
+    }
+    
+    var room Room
+    var createdAt time.Time
+    err := dbPool.QueryRow(ctx, `
+        INSERT INTO rooms (name, description, creator, password_hash, is_private)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING id, name, description, creator, is_private, created_at
+    `, name, description, creator, passwordHash, isPrivate).Scan(
+        &room.ID, &room.Name, &room.Description, &room.Creator, &room.IsPrivate, &createdAt,
+    )
+    if err != nil {
+        if strings.Contains(err.Error(), "unique") {
+            return nil, fmt.Errorf("room name already exists")
+        }
+        return nil, err
+    }
+    
+    room.CreatedAt = createdAt.Format("2006-01-02 15:04:05")
+    return &room, nil
+}
+
+type RoomWithPassword struct {
+    Room
+    PasswordHash []byte
+}
+
+func dbGetRoom(ctx context.Context, name string) (*RoomWithPassword, error) {
+    if !useDB {
+        // Check default rooms
+        defaultRooms := []string{"general", "random", "tech", "gaming"}
+        for _, defaultRoom := range defaultRooms {
+            if defaultRoom == name {
+                return &RoomWithPassword{
+                    Room: Room{Name: name, Creator: "system", IsPrivate: false},
+                }, nil
+            }
+        }
+        return nil, fmt.Errorf("room not found")
+    }
+    
+    var room RoomWithPassword
+    var createdAt time.Time
+    err := dbPool.QueryRow(ctx, `
+        SELECT id, name, description, creator, password_hash, is_private, created_at
+        FROM rooms WHERE name = $1
+    `, name).Scan(
+        &room.ID, &room.Name, &room.Description, &room.Creator, &room.PasswordHash, &room.IsPrivate, &createdAt,
+    )
+    if err != nil {
+        return nil, err
+    }
+    
+    room.CreatedAt = createdAt.Format("2006-01-02 15:04:05")
+    return &room, nil
 }

@@ -139,7 +139,12 @@ export default function ChatBoxContent({ username, onLogout }) {
   const [showSearch, setShowSearch] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [currentRoom, setCurrentRoom] = useState('general');
-  const [availableRooms] = useState(['general', 'random', 'tech', 'gaming']);
+  const [availableRooms, setAvailableRooms] = useState([]);
+  const [showCreateRoom, setShowCreateRoom] = useState(false);
+  const [newRoomName, setNewRoomName] = useState('');
+  const [newRoomDescription, setNewRoomDescription] = useState('');
+  const [newRoomPassword, setNewRoomPassword] = useState('');
+  const [newRoomIsPrivate, setNewRoomIsPrivate] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -158,7 +163,7 @@ export default function ChatBoxContent({ username, onLogout }) {
   const backendWs =
     process.env.REACT_APP_WS_BASE || `${wsProto}://${host}:8080`;
 
-  // Load dark mode preference from backend
+  // Load dark mode preference and rooms from backend
   useEffect(() => {
     const fetchDarkMode = async () => {
       try {
@@ -171,7 +176,28 @@ export default function ChatBoxContent({ username, onLogout }) {
         console.error("Failed to load dark mode:", err);
       }
     };
+    
+    const fetchRooms = async () => {
+      try {
+        const res = await fetch(`${backendHttp}/rooms/list`);
+        if (res.ok) {
+          const rooms = await res.json();
+          setAvailableRooms(rooms);
+        }
+      } catch (err) {
+        console.error("Failed to load rooms:", err);
+        // Fallback to default rooms
+        setAvailableRooms([
+          {name: 'general', description: 'General discussion', isPrivate: false},
+          {name: 'random', description: 'Random topics', isPrivate: false},
+          {name: 'tech', description: 'Technology discussions', isPrivate: false},
+          {name: 'gaming', description: 'Gaming discussions', isPrivate: false}
+        ]);
+      }
+    };
+    
     fetchDarkMode();
+    fetchRooms();
   }, [username, backendHttp]);
 
   // Request notification permission on mount
@@ -321,6 +347,47 @@ export default function ChatBoxContent({ username, onLogout }) {
     return () => clearTimeout(timeoutId);
   }, [input, ws, username]);
 
+  const createRoomHandler = async (roomData) => {
+    try {
+      const res = await fetch(`${backendHttp}/rooms/create`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Username': username
+        },
+        body: JSON.stringify(roomData)
+      });
+      
+      if (res.ok) {
+        const newRoom = await res.json();
+        setAvailableRooms(prev => [...prev, newRoom]);
+        return newRoom;
+      } else {
+        throw new Error(await res.text());
+      }
+    } catch (err) {
+      throw err;
+    }
+  };
+  
+  const joinRoomHandler = async (roomName, password = '') => {
+    try {
+      const res = await fetch(`${backendHttp}/rooms/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomName, password })
+      });
+      
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
+      
+      return true;
+    } catch (err) {
+      throw err;
+    }
+  };
+  
   const sendMessage = () => {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     const textTrimmed = input.trim();
@@ -1220,31 +1287,89 @@ export default function ChatBoxContent({ username, onLogout }) {
         >
           ✕
         </button>
-        {availableRooms.map((room) => (
-          <div
-            key={room}
-            onClick={() => {
-              if (room !== currentRoom) {
-                setCurrentRoom(room);
-                setMessages([]); // Clear messages when switching rooms
-              }
-            }}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              padding: "8px 12px",
-              marginBottom: "4px",
-              borderRadius: 8,
-              cursor: "pointer",
-              backgroundColor: room === currentRoom ? (darkMode ? "#0ea5a4" : "#2563eb") : "transparent",
-              color: room === currentRoom ? "#fff" : (darkMode ? "#e5e7eb" : "#111827"),
-              fontSize: "13px",
-            }}
-          >
-            <span style={{ marginRight: "8px" }}>#</span>
-            {room}
-          </div>
-        ))}
+        <button
+          onClick={() => setShowCreateRoom(true)}
+          style={{
+            width: "100%",
+            padding: "8px 12px",
+            marginBottom: "8px",
+            borderRadius: 8,
+            border: `1px dashed ${darkMode ? "#374151" : "#d1d5db"}`,
+            backgroundColor: "transparent",
+            color: darkMode ? "#9ca3af" : "#6b7280",
+            fontSize: "12px",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          + Create Room
+        </button>
+        
+        {availableRooms.map((room) => {
+          const roomName = typeof room === 'string' ? room : room.name;
+          const roomDesc = typeof room === 'string' ? '' : room.description;
+          const isPrivate = typeof room === 'string' ? false : room.isPrivate;
+          
+          return (
+            <div
+              key={roomName}
+              onClick={async () => {
+                if (roomName !== currentRoom) {
+                  // Check if private room needs password
+                  if (isPrivate) {
+                    const password = prompt(`Enter password for #${roomName}:`);
+                    if (!password) return;
+                    
+                    try {
+                      const res = await fetch(`${backendHttp}/rooms/join`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ roomName, password })
+                      });
+                      
+                      if (!res.ok) {
+                        alert('Invalid password or room access denied');
+                        return;
+                      }
+                    } catch (err) {
+                      alert('Failed to join room');
+                      return;
+                    }
+                  }
+                  
+                  setCurrentRoom(roomName);
+                  setMessages([]); // Clear messages when switching rooms
+                }
+              }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                padding: "8px 12px",
+                marginBottom: "4px",
+                borderRadius: 8,
+                cursor: "pointer",
+                backgroundColor: roomName === currentRoom ? (darkMode ? "#0ea5a4" : "#2563eb") : "transparent",
+                color: roomName === currentRoom ? "#fff" : (darkMode ? "#e5e7eb" : "#111827"),
+                fontSize: "13px",
+                position: "relative",
+              }}
+            >
+              <span style={{ marginRight: "8px" }}>#</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: roomName === currentRoom ? "600" : "400" }}>
+                  {roomName} {isPrivate && "🔒"}
+                </div>
+                {roomDesc && (
+                  <div style={{ fontSize: "11px", opacity: 0.7, marginTop: "2px" }}>
+                    {roomDesc}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
         
         <h3 style={{ margin: "16px 0 12px 0", fontSize: "14px", fontWeight: "600" }}>
           Online Users ({onlineUsers.length})
@@ -1290,6 +1415,196 @@ export default function ChatBoxContent({ username, onLogout }) {
             </span>
           </div>
         ))}
+          </div>
+        </>
+      )}
+      
+      {/* Create Room Modal */}
+      {showCreateRoom && (
+        <>
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              zIndex: 1001,
+            }}
+            onClick={() => setShowCreateRoom(false)}
+          />
+          <div style={{
+            position: "fixed",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            backgroundColor: darkMode ? "#1f2937" : "#ffffff",
+            padding: "24px",
+            borderRadius: "12px",
+            boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+            zIndex: 1002,
+            width: "90%",
+            maxWidth: "400px",
+          }}>
+            <h3 style={{ margin: "0 0 16px 0", fontSize: "18px", fontWeight: "600" }}>
+              Create New Room
+            </h3>
+            
+            <input
+              type="text"
+              placeholder="Room name (e.g., my-room)"
+              value={newRoomName}
+              onChange={(e) => setNewRoomName(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+              style={{
+                width: "100%",
+                padding: "8px 12px",
+                marginBottom: "12px",
+                borderRadius: 6,
+                border: `1px solid ${darkMode ? "#374151" : "#d1d5db"}`,
+                backgroundColor: darkMode ? "#111827" : "#ffffff",
+                color: darkMode ? "#e5e7eb" : "#111827",
+                outline: "none",
+                boxSizing: "border-box",
+              }}
+            />
+            
+            <textarea
+              placeholder="Room description (optional)"
+              value={newRoomDescription}
+              onChange={(e) => setNewRoomDescription(e.target.value)}
+              style={{
+                width: "100%",
+                padding: "8px 12px",
+                marginBottom: "12px",
+                borderRadius: 6,
+                border: `1px solid ${darkMode ? "#374151" : "#d1d5db"}`,
+                backgroundColor: darkMode ? "#111827" : "#ffffff",
+                color: darkMode ? "#e5e7eb" : "#111827",
+                outline: "none",
+                resize: "vertical",
+                minHeight: "60px",
+                boxSizing: "border-box",
+              }}
+            />
+            
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              marginBottom: "12px",
+              fontSize: "14px",
+            }}>
+              <input
+                type="checkbox"
+                id="privateRoom"
+                checked={newRoomIsPrivate}
+                onChange={(e) => setNewRoomIsPrivate(e.target.checked)}
+                style={{ marginRight: "8px" }}
+              />
+              <label htmlFor="privateRoom" style={{ cursor: "pointer" }}>
+                Private room (requires password)
+              </label>
+            </div>
+            
+            {newRoomIsPrivate && (
+              <input
+                type="password"
+                placeholder="Room password"
+                value={newRoomPassword}
+                onChange={(e) => setNewRoomPassword(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  marginBottom: "12px",
+                  borderRadius: 6,
+                  border: `1px solid ${darkMode ? "#374151" : "#d1d5db"}`,
+                  backgroundColor: darkMode ? "#111827" : "#ffffff",
+                  color: darkMode ? "#e5e7eb" : "#111827",
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+              />
+            )}
+            
+            <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+              <button
+                onClick={() => {
+                  setShowCreateRoom(false);
+                  setNewRoomName('');
+                  setNewRoomDescription('');
+                  setNewRoomPassword('');
+                  setNewRoomIsPrivate(false);
+                }}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 6,
+                  border: `1px solid ${darkMode ? "#374151" : "#d1d5db"}`,
+                  backgroundColor: "transparent",
+                  color: darkMode ? "#e5e7eb" : "#111827",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (!newRoomName.trim()) {
+                    alert('Room name is required');
+                    return;
+                  }
+                  
+                  if (newRoomIsPrivate && !newRoomPassword.trim()) {
+                    alert('Password is required for private rooms');
+                    return;
+                  }
+                  
+                  try {
+                    const res = await fetch(`${backendHttp}/rooms/create`, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'X-Username': username
+                      },
+                      body: JSON.stringify({
+                        name: newRoomName.trim(),
+                        description: newRoomDescription.trim(),
+                        password: newRoomPassword,
+                        isPrivate: newRoomIsPrivate
+                      })
+                    });
+                    
+                    if (res.ok) {
+                      const newRoom = await res.json();
+                      setAvailableRooms(prev => [...prev, newRoom]);
+                      setCurrentRoom(newRoom.name);
+                      setMessages([]);
+                      setShowCreateRoom(false);
+                      setNewRoomName('');
+                      setNewRoomDescription('');
+                      setNewRoomPassword('');
+                      setNewRoomIsPrivate(false);
+                    } else {
+                      const error = await res.text();
+                      alert(error || 'Failed to create room');
+                    }
+                  } catch (err) {
+                    alert('Failed to create room');
+                  }
+                }}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 6,
+                  border: "none",
+                  backgroundColor: darkMode ? "#0ea5a4" : "#2563eb",
+                  color: "#ffffff",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                }}
+              >
+                Create Room
+              </button>
+            </div>
           </div>
         </>
       )}
