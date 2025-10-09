@@ -439,21 +439,11 @@ func serveWs(h *Hub, username string, w http.ResponseWriter, r *http.Request) {
         }
     }
     
-    // Send current user list to new client
-    users := make([]string, 0, len(h.clients))
-    for c := range h.clients {
-        users = append(users, c.username)
-    }
-    users = append(users, username) // Include the new user
-    
-    userPayload := struct {
-        Type  string   `json:"type"`
-        Users []string `json:"users"`
-    }{Type: "users", Users: users}
-    
-    if b, err := json.Marshal(userPayload); err == nil {
-        conn.WriteMessage(websocket.TextMessage, b)
-    }
+    // Send initial user list after registration
+    go func() {
+        time.Sleep(100 * time.Millisecond) // Small delay to ensure client is registered
+        h.broadcastUserList()
+    }()
 
     go client.readPump()
     go client.writePump()
