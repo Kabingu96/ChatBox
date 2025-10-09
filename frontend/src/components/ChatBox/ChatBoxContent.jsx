@@ -398,11 +398,10 @@ export default function ChatBoxContent({ username, onLogout }) {
     overflowY: "auto",
     position: "fixed",
     top: 0,
-    left: showSidebar ? 0 : "-280px",
+    left: 0,
     height: "100vh",
     zIndex: 1000,
-    transition: "left 0.3s ease",
-    boxShadow: showSidebar ? "4px 0 8px rgba(0,0,0,0.1)" : "none",
+    boxShadow: "4px 0 8px rgba(0,0,0,0.1)",
   };
   const headerStyle = {
     display: "flex",
@@ -787,20 +786,20 @@ export default function ChatBoxContent({ username, onLogout }) {
       </audio>
       
       {showSidebar && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.5)",
-            zIndex: 999,
-          }}
-          onClick={() => setShowSidebar(false)}
-        />
-      )}
-      <div style={sidebarStyle}>
+        <>
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              zIndex: 999,
+            }}
+            onClick={() => setShowSidebar(false)}
+          />
+          <div style={sidebarStyle}>
         <h3 style={{ margin: "0 0 12px 0", fontSize: "14px", fontWeight: "600" }}>
           Rooms
         </h3>
@@ -874,7 +873,9 @@ export default function ChatBoxContent({ username, onLogout }) {
             </span>
           </div>
         ))}
-      </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
