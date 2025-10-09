@@ -282,14 +282,31 @@ func (c *Client) readPump() {
         }
 
         var inc struct {
+            Type      string `json:"type,omitempty"`
             Text      string `json:"text"`
             Timezone  string `json:"timezone,omitempty"`
             ClientID  int64  `json:"clientId,omitempty"`
+            Username  string `json:"username,omitempty"`
+            IsTyping  bool   `json:"isTyping,omitempty"`
         }
         if err := json.Unmarshal(raw, &inc); err != nil {
             log.Println("unmarshal error:", err)
             continue
         }
+        // Handle typing indicator
+        if inc.Type == "typing" {
+            typingPayload := struct {
+                Type     string `json:"type"`
+                Username string `json:"username"`
+                IsTyping bool   `json:"isTyping"`
+            }{Type: "typing", Username: c.username, IsTyping: inc.IsTyping}
+            
+            if b, err := json.Marshal(typingPayload); err == nil {
+                c.hub.broadcast <- Broadcast{sender: c, message: b}
+            }
+            continue
+        }
+        
         if inc.Text == "" {
             continue
         }
@@ -316,6 +333,17 @@ func (c *Client) readPump() {
             }
         }
 
+        // Stop typing indicator when message is sent
+        typingPayload := struct {
+            Type     string `json:"type"`
+            Username string `json:"username"`
+            IsTyping bool   `json:"isTyping"`
+        }{Type: "typing", Username: c.username, IsTyping: false}
+        
+        if b, err := json.Marshal(typingPayload); err == nil {
+            c.hub.broadcast <- Broadcast{sender: c, message: b}
+        }
+        
         outBytes, _ := json.Marshal(out)
         c.hub.broadcast <- Broadcast{sender: c, message: outBytes}
     }

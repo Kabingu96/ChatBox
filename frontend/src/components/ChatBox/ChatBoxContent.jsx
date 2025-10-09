@@ -1,5 +1,21 @@
 import React, { useState, useEffect, useRef } from "react";
 
+// Helper function to format timestamps
+const formatTimeAgo = (timestamp) => {
+  const now = new Date();
+  const messageTime = new Date(timestamp);
+  const diffMs = now - messageTime;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return messageTime.toLocaleDateString();
+};
+
 export default function ChatBoxContent({ username, onLogout }) {
   const [ws, setWs] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -8,6 +24,7 @@ export default function ChatBoxContent({ username, onLogout }) {
   const [editingId, setEditingId] = useState(null);
   const [editInput, setEditInput] = useState("");
   const [onlineUsers, setOnlineUsers] = useState([]);
+  const [typingUsers, setTypingUsers] = useState([]);
   const endRef = useRef(null);
 
   // Resolve backend base URL with env overrides for production
@@ -93,6 +110,14 @@ export default function ChatBoxContent({ username, onLogout }) {
         if (payload.type === "users" && Array.isArray(payload.users)) {
           setOnlineUsers(payload.users);
         }
+
+        // typing indicator
+        if (payload.type === "typing") {
+          setTypingUsers((prev) => {
+            const filtered = prev.filter(u => u !== payload.username);
+            return payload.isTyping ? [...filtered, payload.username] : filtered;
+          });
+        }
       } catch (err) {
         console.error("Invalid message received:", event.data);
       }
@@ -113,10 +138,28 @@ export default function ChatBoxContent({ username, onLogout }) {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Typing indicator with debounce
+  useEffect(() => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    
+    const timeoutId = setTimeout(() => {
+      ws.send(JSON.stringify({ type: "typing", username, isTyping: false }));
+    }, 1000);
+
+    if (input.trim()) {
+      ws.send(JSON.stringify({ type: "typing", username, isTyping: true }));
+    }
+
+    return () => clearTimeout(timeoutId);
+  }, [input, ws, username]);
+
   const sendMessage = () => {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     const textTrimmed = input.trim();
     if (!textTrimmed) return;
+    
+    // Stop typing indicator
+    ws.send(JSON.stringify({ type: "typing", username, isTyping: false }));
 
     // Use timezone-aware timestamp
     const timestamp = new Date().toLocaleString("en-US", { timeZoneName: "short" });
@@ -162,7 +205,9 @@ export default function ChatBoxContent({ username, onLogout }) {
   };
 
   const onKeyDown = (e) => {
-    if (e.key === "Enter") sendMessage();
+    if (e.key === "Enter") {
+      sendMessage();
+    }
   };
 
   const containerStyle = {
@@ -315,7 +360,7 @@ export default function ChatBoxContent({ username, onLogout }) {
                   <div style={textStyle}>{m.text}</div>
                 )}
 
-                <div style={tsStyle}>{m.timestamp}</div>
+                <div style={tsStyle} title={m.timestamp}>{formatTimeAgo(m.timestamp)}</div>
 
                 {isMine && editingId !== m.id && (
                   <div style={{ marginTop: 4, display: "flex", gap: 4 }}>
@@ -337,6 +382,19 @@ export default function ChatBoxContent({ username, onLogout }) {
             </div>
           );
         })}
+        {typingUsers.length > 0 && (
+          <div style={{ 
+            padding: "8px 16px", 
+            fontSize: "12px", 
+            opacity: 0.7,
+            fontStyle: "italic"
+          }}>
+            {typingUsers.length === 1 
+              ? `${typingUsers[0]} is typing...` 
+              : `${typingUsers.slice(0, 2).join(", ")}${typingUsers.length > 2 ? ` and ${typingUsers.length - 2} others` : ""} are typing...`
+            }
+          </div>
+        )}
         <div ref={endRef} />
       </div>
 
