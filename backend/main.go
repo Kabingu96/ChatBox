@@ -84,6 +84,20 @@ var (
 var dbPool *pgxpool.Pool
 var useDB bool
 
+// In-memory room storage for development
+var inMemoryRooms []Room
+var inMemoryRoomPasswords = make(map[string][]byte)
+
+func init() {
+    // Initialize default rooms
+    inMemoryRooms = []Room{
+        {ID: 1, Name: "general", Description: "General discussion", Creator: "system", IsPrivate: false, CreatedAt: "2024-01-01 00:00:00"},
+        {ID: 2, Name: "random", Description: "Random topics", Creator: "system", IsPrivate: false, CreatedAt: "2024-01-01 00:00:00"},
+        {ID: 3, Name: "tech", Description: "Technology discussions", Creator: "system", IsPrivate: false, CreatedAt: "2024-01-01 00:00:00"},
+        {ID: 4, Name: "gaming", Description: "Gaming discussions", Creator: "system", IsPrivate: false, CreatedAt: "2024-01-01 00:00:00"},
+    }
+}
+
 // -------------------- WebSocket / Hub --------------------
 
 var upgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
@@ -1178,6 +1192,7 @@ func createRoomHandler(w http.ResponseWriter, r *http.Request) {
             http.Error(w, "Room name already exists", http.StatusConflict)
             return
         }
+        log.Printf("Room creation error: %v", err)
         http.Error(w, "Failed to create room", http.StatusInternalServerError)
         return
     }
@@ -1226,13 +1241,8 @@ func joinRoomHandler(w http.ResponseWriter, r *http.Request) {
 
 func dbListRooms(ctx context.Context) ([]Room, error) {
     if !useDB {
-        // Return default rooms for in-memory mode
-        return []Room{
-            {ID: 1, Name: "general", Description: "General discussion", Creator: "system", IsPrivate: false},
-            {ID: 2, Name: "random", Description: "Random topics", Creator: "system", IsPrivate: false},
-            {ID: 3, Name: "tech", Description: "Technology discussions", Creator: "system", IsPrivate: false},
-            {ID: 4, Name: "gaming", Description: "Gaming discussions", Creator: "system", IsPrivate: false},
-        }, nil
+        // Return in-memory rooms
+        return inMemoryRooms, nil
     }
     
     rows, err := dbPool.Query(ctx, `
@@ -1261,7 +1271,30 @@ func dbListRooms(ctx context.Context) ([]Room, error) {
 
 func dbCreateRoom(ctx context.Context, name, description, creator string, passwordHash []byte, isPrivate bool) (*Room, error) {
     if !useDB {
-        return nil, fmt.Errorf("database required for room creation")
+        // In-memory room creation for development
+        room := &Room{
+            ID:          int64(len(inMemoryRooms) + 1),
+            Name:        name,
+            Description: description,
+            Creator:     creator,
+            IsPrivate:   isPrivate,
+            CreatedAt:   time.Now().Format("2006-01-02 15:04:05"),
+        }
+        
+        // Check if room already exists
+        for _, existingRoom := range inMemoryRooms {
+            if existingRoom.Name == name {
+                return nil, fmt.Errorf("room name already exists")
+            }
+        }
+        
+        // Store password hash if private
+        if isPrivate && len(passwordHash) > 0 {
+            inMemoryRoomPasswords[name] = passwordHash
+        }
+        
+        inMemoryRooms = append(inMemoryRooms, *room)
+        return room, nil
     }
     
     var room Room
@@ -1291,13 +1324,16 @@ type RoomWithPassword struct {
 
 func dbGetRoom(ctx context.Context, name string) (*RoomWithPassword, error) {
     if !useDB {
-        // Check default rooms
-        defaultRooms := []string{"general", "random", "tech", "gaming"}
-        for _, defaultRoom := range defaultRooms {
-            if defaultRoom == name {
-                return &RoomWithPassword{
-                    Room: Room{Name: name, Creator: "system", IsPrivate: false},
-                }, nil
+        // Check in-memory rooms
+        for _, room := range inMemoryRooms {
+            if room.Name == name {
+                roomWithPassword := &RoomWithPassword{
+                    Room: room,
+                }
+                if passwordHash, exists := inMemoryRoomPasswords[name]; exists {
+                    roomWithPassword.PasswordHash = passwordHash
+                }
+                return roomWithPassword, nil
             }
         }
         return nil, fmt.Errorf("room not found")
