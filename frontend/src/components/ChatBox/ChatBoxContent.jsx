@@ -25,6 +25,92 @@ const getAvatar = (username) => {
   return { color, initial };
 };
 
+// Format message text with markdown-style formatting
+const formatMessage = (text) => {
+  if (!text) return null;
+  
+  const parts = [];
+  let currentIndex = 0;
+  
+  // Regex patterns for formatting
+  const patterns = [
+    { regex: /\*\*(.*?)\*\*/g, tag: 'strong' },
+    { regex: /\*(.*?)\*/g, tag: 'em' },
+    { regex: /__(.*?)__/g, tag: 'strong' },
+    { regex: /_(.*?)_/g, tag: 'em' },
+    { regex: /`(.*?)`/g, tag: 'code' },
+  ];
+  
+  const matches = [];
+  patterns.forEach(pattern => {
+    let match;
+    while ((match = pattern.regex.exec(text)) !== null) {
+      matches.push({
+        start: match.index,
+        end: match.index + match[0].length,
+        content: match[1],
+        tag: pattern.tag,
+        full: match[0]
+      });
+    }
+  });
+  
+  // Sort matches by position
+  matches.sort((a, b) => a.start - b.start);
+  
+  // Remove overlapping matches
+  const validMatches = [];
+  matches.forEach(match => {
+    if (!validMatches.some(vm => 
+      (match.start >= vm.start && match.start < vm.end) ||
+      (match.end > vm.start && match.end <= vm.end)
+    )) {
+      validMatches.push(match);
+    }
+  });
+  
+  if (validMatches.length === 0) {
+    return text;
+  }
+  
+  let lastIndex = 0;
+  const elements = [];
+  
+  validMatches.forEach((match, index) => {
+    // Add text before match
+    if (match.start > lastIndex) {
+      elements.push(text.slice(lastIndex, match.start));
+    }
+    
+    // Add formatted element
+    const key = `format-${index}`;
+    if (match.tag === 'strong') {
+      elements.push(React.createElement('strong', { key }, match.content));
+    } else if (match.tag === 'em') {
+      elements.push(React.createElement('em', { key }, match.content));
+    } else if (match.tag === 'code') {
+      elements.push(React.createElement('code', { 
+        key, 
+        style: { 
+          backgroundColor: 'rgba(255,255,255,0.1)', 
+          padding: '2px 4px', 
+          borderRadius: 3, 
+          fontSize: '0.9em' 
+        } 
+      }, match.content));
+    }
+    
+    lastIndex = match.end;
+  });
+  
+  // Add remaining text
+  if (lastIndex < text.length) {
+    elements.push(text.slice(lastIndex));
+  }
+  
+  return elements;
+};
+
 export default function ChatBoxContent({ username, onLogout }) {
   const [ws, setWs] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -712,7 +798,7 @@ export default function ChatBoxContent({ username, onLogout }) {
                   </>
                 ) : (
                   <>
-                    {m.text && <div style={textStyle}>{m.text}</div>}
+                    {m.text && <div style={textStyle}>{formatMessage(m.text)}</div>}
                     {m.fileUrl && (
                       <div style={{ marginTop: m.text ? 8 : 0 }}>
                         {m.fileType && m.fileType.startsWith('image/') ? (
@@ -923,7 +1009,7 @@ export default function ChatBoxContent({ username, onLogout }) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="Type your message..."
+            placeholder="Type your message... (*bold* _italic_ `code`)"
             style={inputStyle}
           />
           {showEmojiPicker && (
@@ -987,8 +1073,25 @@ export default function ChatBoxContent({ username, onLogout }) {
             backgroundColor: showEmojiPicker ? (darkMode ? '#0ea5a4' : '#2563eb') : (darkMode ? '#6b7280' : '#9ca3af'),
             padding: isMobile ? "8px 10px" : "10px 12px",
           }}
+          title="Emoji picker"
         >
           😀
+        </button>
+        <button
+          onClick={() => {
+            const formats = ['**bold**', '*italic*', '`code`'];
+            const randomFormat = formats[Math.floor(Math.random() * formats.length)];
+            setInput(prev => prev + randomFormat);
+          }}
+          style={{
+            ...btnStyle,
+            backgroundColor: darkMode ? '#6b7280' : '#9ca3af',
+            padding: isMobile ? "8px 10px" : "10px 12px",
+            fontSize: isMobile ? '12px' : '14px',
+          }}
+          title="Format text (*bold* _italic_ `code`)"
+        >
+          B
         </button>
         <button 
           onClick={() => fileInputRef.current?.click()}
