@@ -1051,9 +1051,7 @@ export default function ChatBoxContent({ username, onLogout }) {
           }}>
             <button
               onClick={() => {
-                const formats = ['**bold**', '*italic*', '`code`'];
-                const randomFormat = formats[Math.floor(Math.random() * formats.length)];
-                setInput(prev => prev + randomFormat);
+                setInput(prev => prev + '**bold**');
               }}
               style={{
                 padding: "4px 6px",
@@ -1065,7 +1063,7 @@ export default function ChatBoxContent({ username, onLogout }) {
                 fontSize: "12px",
                 fontWeight: "bold",
               }}
-              title="Format text (*bold* _italic_ `code` @mention)"
+              title="Insert bold text (**bold**)"
             >
               B
             </button>
