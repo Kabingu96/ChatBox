@@ -176,6 +176,14 @@ export default function ChatBoxContent({ username, onLogout }) {
     };
   }, [username, backendWs, currentRoom]);
 
+  // Filter messages based on search query
+  const filteredMessages = searchQuery.trim() 
+    ? messages.filter(m => 
+        (m.text && m.text.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (m.username && m.username.toLowerCase().includes(searchQuery.toLowerCase()))
+      )
+    : messages;
+
   // Scroll to bottom
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -195,14 +203,6 @@ export default function ChatBoxContent({ username, onLogout }) {
 
     return () => clearTimeout(timeoutId);
   }, [input, ws, username]);
-
-  // Filter messages based on search query
-  const filteredMessages = searchQuery.trim() 
-    ? messages.filter(m => 
-        (m.text && m.text.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (m.username && m.username.toLowerCase().includes(searchQuery.toLowerCase()))
-      )
-    : messages;
 
   const sendMessage = () => {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
@@ -370,6 +370,8 @@ export default function ChatBoxContent({ username, onLogout }) {
       sendMessage();
     }
   };
+
+
 
   const containerStyle = {
     display: "flex",
