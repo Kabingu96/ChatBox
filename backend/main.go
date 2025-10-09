@@ -788,40 +788,73 @@ func main() {
         // Parse multipart form (10MB max)
         err := r.ParseMultipartForm(10 << 20)
         if err != nil {
-            http.Error(w, "File too large", http.StatusBadRequest)
+            log.Printf("ParseMultipartForm error: %v", err)
+            http.Error(w, "File too large or invalid", http.StatusBadRequest)
             return
         }
         
         file, header, err := r.FormFile("file")
         if err != nil {
+            log.Printf("FormFile error: %v", err)
             http.Error(w, "No file provided", http.StatusBadRequest)
             return
         }
         defer file.Close()
         
         // Create uploads directory if it doesn't exist
-        os.MkdirAll("uploads", 0755)
+        if err := os.MkdirAll("uploads", 0755); err != nil {
+            log.Printf("MkdirAll error: %v", err)
+            http.Error(w, "Server error", http.StatusInternalServerError)
+            return
+        }
         
         // Generate unique filename
         filename := fmt.Sprintf("%d_%s", time.Now().Unix(), header.Filename)
-        filepath := fmt.Sprintf("uploads/%s", filename)
+        filePath := filepath.Join("uploads", filename)
         
         // Save file
-        dst, err := os.Create(filepath)
+        dst, err := os.Create(filePath)
         if err != nil {
-            http.Error(w, "Failed to save file", http.StatusInternalServerError)
+            log.Printf("Create file error: %v", err)
+            http.Error(w, "Failed to create file", http.StatusInternalServerError)
             return
         }
         defer dst.Close()
         
+        // Copy file content
         if _, err := file.Seek(0, 0); err != nil {
-            http.Error(w, "File error", http.StatusInternalServerError)
+            log.Printf("File seek error: %v", err)
+            http.Error(w, "File read error", http.StatusInternalServerError)
             return
         }
         
-        if _, err := dst.ReadFrom(file); err != nil {
+        written, err := dst.ReadFrom(file)
+        if err != nil {
+            log.Printf("File copy error: %v", err)
             http.Error(w, "Failed to save file", http.StatusInternalServerError)
             return
+        }
+        
+        log.Printf("File uploaded successfully: %s (%d bytes)", filename, written)
+        
+        // Detect content type if not provided
+        contentType := header.Header.Get("Content-Type")
+        if contentType == "" {
+            ext := strings.ToLower(filepath.Ext(header.Filename))
+            switch ext {
+            case ".jpg", ".jpeg":
+                contentType = "image/jpeg"
+            case ".png":
+                contentType = "image/png"
+            case ".gif":
+                contentType = "image/gif"
+            case ".pdf":
+                contentType = "application/pdf"
+            case ".txt":
+                contentType = "text/plain"
+            default:
+                contentType = "application/octet-stream"
+            }
         }
         
         // Return file URL
@@ -829,15 +862,15 @@ func main() {
         response := map[string]string{
             "fileUrl": fileURL,
             "fileName": header.Filename,
-            "fileType": header.Header.Get("Content-Type"),
+            "fileType": contentType,
         }
         
         w.Header().Set("Content-Type", "application/json")
         json.NewEncoder(w).Encode(response)
     })))
     
-    // Serve uploaded files
-    http.Handle("/files/", http.StripPrefix("/files/", http.FileServer(http.Dir("uploads/"))))
+    // Serve uploaded files with proper headers
+    http.Handle("/files/", enableCors(http.StripPrefix("/files/", http.FileServer(http.Dir("uploads/")))))
 
     // WebSocket endpoint expects ?username=XYZ&room=ABC from frontend after login
     http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
