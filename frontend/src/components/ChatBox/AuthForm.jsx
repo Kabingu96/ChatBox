@@ -8,6 +8,7 @@ export default function AuthForm({ setUsername }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Detect system dark mode preference
   useEffect(() => {
@@ -176,16 +177,39 @@ export default function AuthForm({ setUsername }) {
             onFocus={(e) => e.target.style.borderColor = darkMode ? "#0ea5a4" : "#2563eb"}
             onBlur={(e) => e.target.style.borderColor = darkMode ? "#374151" : "#d1d5db"}
           />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            style={inputStyle}
-            onFocus={(e) => e.target.style.borderColor = darkMode ? "#0ea5a4" : "#2563eb"}
-            onBlur={(e) => e.target.style.borderColor = darkMode ? "#374151" : "#d1d5db"}
-          />
+          <div style={{ position: "relative" }}>
+            <input
+              type={showPassword ? "text" : "password"}
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              style={{
+                ...inputStyle,
+                paddingRight: "48px",
+              }}
+              onFocus={(e) => e.target.style.borderColor = darkMode ? "#0ea5a4" : "#2563eb"}
+              onBlur={(e) => e.target.style.borderColor = darkMode ? "#374151" : "#d1d5db"}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              style={{
+                position: "absolute",
+                right: "12px",
+                top: "50%",
+                transform: "translateY(-50%)",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                fontSize: "16px",
+                color: darkMode ? "#9ca3af" : "#6b7280",
+                padding: "4px",
+              }}
+            >
+              {showPassword ? "🙈" : "👁️"}
+            </button>
+          </div>
           <button 
             type="submit" 
             style={buttonStyle}
