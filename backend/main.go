@@ -241,7 +241,7 @@ func saveMessage(m Message) int64 {
 
 func loadRecentMessages(limit int, room string) []Message {
     if useDB {
-        msgs, err := dbLoadRecentMessages(context.Background(), limit)
+        msgs, err := dbLoadRecentMessages(context.Background(), limit, room)
         if err != nil {
             log.Println("db load history error:", err)
             return nil
@@ -938,7 +938,7 @@ func dbSaveMessage(ctx context.Context, m Message) (int64, error) {
     return id, err
 }
 
-func dbLoadRecentMessages(ctx context.Context, limit int) ([]Message, error) {
+func dbLoadRecentMessages(ctx context.Context, limit int, room string) ([]Message, error) {
     if limit <= 0 {
         limit = 200
     }
