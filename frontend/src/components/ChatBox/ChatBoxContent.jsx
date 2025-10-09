@@ -16,6 +16,15 @@ const formatTimeAgo = (timestamp) => {
   return messageTime.toLocaleDateString();
 };
 
+// Generate avatar from username
+const getAvatar = (username) => {
+  const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F'];
+  const hash = username.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
+  const color = colors[hash % colors.length];
+  const initial = username.charAt(0).toUpperCase();
+  return { color, initial };
+};
+
 export default function ChatBoxContent({ username, onLogout }) {
   const [ws, setWs] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -472,9 +481,25 @@ export default function ChatBoxContent({ username, onLogout }) {
           >
             ☰
           </button>
-          <div>
-            <strong style={{ fontSize: isMobile ? 16 : 18 }}>ChatBox</strong>
-            <div style={{ fontSize: isMobile ? 11 : 12, opacity: 0.8 }}>#{currentRoom} • {username}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div style={{
+              width: 32,
+              height: 32,
+              borderRadius: "50%",
+              backgroundColor: getAvatar(username).color,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 14,
+              fontWeight: "bold",
+              color: "white",
+            }}>
+              {getAvatar(username).initial}
+            </div>
+            <div>
+              <strong style={{ fontSize: isMobile ? 16 : 18 }}>ChatBox</strong>
+              <div style={{ fontSize: isMobile ? 11 : 12, opacity: 0.8 }}>#{currentRoom} • {username}</div>
+            </div>
           </div>
         </div>
         <div style={{ display: "flex", gap: isMobile ? "4px" : "8px", flexWrap: "wrap" }}>
@@ -614,7 +639,26 @@ export default function ChatBoxContent({ username, onLogout }) {
           return (
             <div key={m.id} style={wrapperStyle}>
               <div style={bubbleStyle}>
-                <div style={nameStyle}>{isMine ? "You" : m.username}</div>
+                <div style={{ display: "flex", alignItems: "center", marginBottom: 4 }}>
+                  {!isMine && (
+                    <div style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: "50%",
+                      backgroundColor: getAvatar(m.username).color,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 10,
+                      fontWeight: "bold",
+                      color: "white",
+                      marginRight: 6,
+                    }}>
+                      {getAvatar(m.username).initial}
+                    </div>
+                  )}
+                  <div style={nameStyle}>{isMine ? "You" : m.username}</div>
+                </div>
 
                 {editingId === m.id ? (
                   <>
@@ -872,15 +916,32 @@ export default function ChatBoxContent({ username, onLogout }) {
               fontSize: "13px",
             }}
           >
-            <div
-              style={{
-                width: "8px",
-                height: "8px",
+            <div style={{ position: "relative", marginRight: "8px" }}>
+              <div style={{
+                width: 24,
+                height: 24,
+                borderRadius: "50%",
+                backgroundColor: getAvatar(user).color,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 11,
+                fontWeight: "bold",
+                color: "white",
+              }}>
+                {getAvatar(user).initial}
+              </div>
+              <div style={{
+                position: "absolute",
+                bottom: -1,
+                right: -1,
+                width: 8,
+                height: 8,
                 borderRadius: "50%",
                 backgroundColor: "#10b981",
-                marginRight: "8px",
-              }}
-            />
+                border: `2px solid ${darkMode ? "#0b1220" : "#ffffff"}`,
+              }} />
+            </div>
             <span style={{ fontWeight: user === username ? "600" : "400" }}>
               {user === username ? "You" : user}
             </span>
