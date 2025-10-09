@@ -46,7 +46,7 @@ func enableCors(next http.Handler) http.Handler {
         }
         
         w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-        w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Requested-With")
+        w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Requested-With, X-Username")
         w.Header().Set("Access-Control-Allow-Credentials", "true")
         
         // Security headers
