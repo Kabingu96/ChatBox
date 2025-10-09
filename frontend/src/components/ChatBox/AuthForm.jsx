@@ -10,6 +10,18 @@ export default function AuthForm({ setUsername }) {
   const [darkMode, setDarkMode] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const usernameRef = useRef(null);
+  const passwordRef = useRef(null);
+
+  // Handle Enter key navigation
+  const handleKeyDown = (e, field) => {
+    if (e.key === 'Enter') {
+      if (field === 'username' && passwordRef.current) {
+        e.preventDefault();
+        passwordRef.current.focus();
+      }
+      // If in password field, Enter will submit form (default behavior)
+    }
+  };
 
   // Auto-focus username input on mount
   useEffect(() => {
@@ -186,9 +198,11 @@ export default function AuthForm({ setUsername }) {
             style={inputStyle}
             onFocus={(e) => e.target.style.borderColor = darkMode ? "#0ea5a4" : "#2563eb"}
             onBlur={(e) => e.target.style.borderColor = darkMode ? "#374151" : "#d1d5db"}
+            onKeyDown={(e) => handleKeyDown(e, 'username')}
           />
           <div style={{ position: "relative" }}>
             <input
+              ref={passwordRef}
               type={showPassword ? "text" : "password"}
               placeholder="Password"
               value={password}
