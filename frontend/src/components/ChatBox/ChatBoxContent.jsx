@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 
-export default function ChatBoxContent({ username }) {
+export default function ChatBoxContent({ username, onLogout }) {
   const [ws, setWs] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -214,7 +214,7 @@ export default function ChatBoxContent({ username }) {
           <strong style={{ fontSize: 18 }}>ChatBox</strong>
           <div style={{ fontSize: 12, opacity: 0.8 }}>Your username: {username}</div>
         </div>
-        <div>
+        <div style={{ display: "flex", gap: "8px" }}>
           <button
             onClick={async () => {
               const newMode = !darkMode;
@@ -239,6 +239,19 @@ export default function ChatBoxContent({ username }) {
             }}
           >
             {darkMode ? "Light Mode" : "Dark Mode"}
+          </button>
+          <button
+            onClick={onLogout}
+            style={{
+              padding: "6px 10px",
+              borderRadius: 8,
+              border: "1px solid transparent",
+              backgroundColor: darkMode ? "#dc2626" : "#ef4444",
+              color: "#fff",
+              cursor: "pointer",
+            }}
+          >
+            Logout
           </button>
         </div>
       </div>
