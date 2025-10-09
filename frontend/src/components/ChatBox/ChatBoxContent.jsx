@@ -26,6 +26,8 @@ export default function ChatBoxContent({ username, onLogout }) {
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [typingUsers, setTypingUsers] = useState([]);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showSearch, setShowSearch] = useState(false);
   const endRef = useRef(null);
   const audioRef = useRef(null);
 
@@ -165,7 +167,7 @@ export default function ChatBoxContent({ username, onLogout }) {
   // Scroll to bottom
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [filteredMessages]);
 
   // Typing indicator with debounce
   useEffect(() => {
@@ -272,6 +274,14 @@ export default function ChatBoxContent({ username, onLogout }) {
       sendMessage();
     }
   };
+
+  // Filter messages based on search query
+  const filteredMessages = searchQuery.trim() 
+    ? messages.filter(m => 
+        m.text.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        m.username.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : messages;
 
   const containerStyle = {
     display: "flex",
@@ -387,6 +397,20 @@ export default function ChatBoxContent({ username, onLogout }) {
             🔔
           </button>
           <button
+            onClick={() => setShowSearch(!showSearch)}
+            style={{
+              padding: "6px 10px",
+              borderRadius: 8,
+              border: "1px solid transparent",
+              backgroundColor: showSearch ? (darkMode ? "#0ea5a4" : "#2563eb") : (darkMode ? "#6b7280" : "#9ca3af"),
+              color: "#fff",
+              cursor: "pointer",
+              fontSize: "12px",
+            }}
+          >
+            🔍
+          </button>
+          <button
             onClick={onLogout}
             style={{
               padding: "6px 10px",
@@ -402,8 +426,37 @@ export default function ChatBoxContent({ username, onLogout }) {
         </div>
       </div>
 
+      {showSearch && (
+        <div style={{
+          padding: "12px",
+          borderBottom: `1px solid ${darkMode ? "#1f2937" : "#e5e7eb"}`,
+          backgroundColor: darkMode ? "#0f1720" : "#f9fafb",
+        }}>
+          <input
+            type="text"
+            placeholder="Search messages..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              width: "100%",
+              padding: "8px 12px",
+              borderRadius: 8,
+              border: `1px solid ${darkMode ? "#374151" : "#d1d5db"}`,
+              backgroundColor: darkMode ? "#1f2937" : "#fff",
+              color: darkMode ? "#e5e7eb" : "#111827",
+              outline: "none",
+            }}
+          />
+          {searchQuery && (
+            <div style={{ marginTop: 8, fontSize: 12, opacity: 0.7 }}>
+              Found {filteredMessages.length} message{filteredMessages.length !== 1 ? 's' : ''}
+            </div>
+          )}
+        </div>
+      )}
+
       <div style={messagesWrapStyle}>
-        {messages.map((m) => {
+        {filteredMessages.map((m) => {
           const isMine = !!m.fromUser;
           const wrapperStyle = {
             display: "flex",
