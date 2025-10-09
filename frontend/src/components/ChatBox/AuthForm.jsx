@@ -64,19 +64,28 @@ export default function AuthForm({ setUsername }) {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: darkMode ? "#0f1720" : "#f3f4f6",
+    background: darkMode 
+      ? "linear-gradient(135deg, #0c0c0c 0%, #1a0033 25%, #000066 50%, #330066 75%, #0c0c0c 100%)"
+      : "linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #f5576c 75%, #4facfe 100%)",
     fontFamily: "Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial",
     padding: "20px",
+    position: "relative",
+    overflow: "hidden",
   };
 
   const cardStyle = {
-    backgroundColor: darkMode ? "#1f2937" : "#ffffff",
+    backgroundColor: darkMode ? "rgba(15, 23, 42, 0.85)" : "rgba(255, 255, 255, 0.9)",
     padding: "40px",
-    borderRadius: "16px",
-    boxShadow: darkMode ? "0 20px 25px -5px rgba(0, 0, 0, 0.3)" : "0 20px 25px -5px rgba(0, 0, 0, 0.1)",
+    borderRadius: "20px",
+    boxShadow: darkMode 
+      ? "0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(99, 102, 241, 0.1)"
+      : "0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.2)",
     width: "100%",
     maxWidth: "400px",
-    border: darkMode ? "1px solid #374151" : "1px solid #e5e7eb",
+    border: darkMode ? "1px solid rgba(99, 102, 241, 0.2)" : "1px solid rgba(255, 255, 255, 0.3)",
+    backdropFilter: "blur(20px)",
+    position: "relative",
+    zIndex: 10,
   };
 
   const titleStyle = {
@@ -111,22 +120,27 @@ export default function AuthForm({ setUsername }) {
   const buttonStyle = {
     width: "100%",
     padding: "12px 16px",
-    borderRadius: "8px",
+    borderRadius: "12px",
     border: "none",
-    backgroundColor: darkMode ? "#0ea5a4" : "#2563eb",
+    background: darkMode 
+      ? "linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #06b6d4 100%)"
+      : "linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)",
     color: "#ffffff",
     fontSize: "16px",
     fontWeight: "600",
     cursor: loading ? "not-allowed" : "pointer",
     opacity: loading ? 0.7 : 1,
     marginBottom: "16px",
-    transition: "all 0.2s",
+    transition: "all 0.3s ease",
+    boxShadow: darkMode 
+      ? "0 8px 32px rgba(99, 102, 241, 0.3)"
+      : "0 8px 32px rgba(102, 126, 234, 0.3)",
   };
 
   const switchButtonStyle = {
     background: "none",
     border: "none",
-    color: darkMode ? "#0ea5a4" : "#2563eb",
+    color: darkMode ? "#8b5cf6" : "#667eea",
     fontSize: "14px",
     cursor: "pointer",
     textDecoration: "underline",
@@ -156,17 +170,87 @@ export default function AuthForm({ setUsername }) {
     fontSize: "12px",
   };
 
-  // Add CSS animation for spinner
-  const spinnerStyle = `
+  // Add CSS animations
+  const animationStyles = `
     @keyframes spin {
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0px) rotate(0deg); }
+      50% { transform: translateY(-20px) rotate(180deg); }
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.4; transform: scale(1); }
+      50% { opacity: 0.8; transform: scale(1.1); }
+    }
+    @keyframes drift {
+      0% { transform: translateX(-100px) translateY(-100px) rotate(0deg); }
+      100% { transform: translateX(calc(100vw + 100px)) translateY(calc(100vh + 100px)) rotate(360deg); }
     }
   `;
 
   return (
     <div style={containerStyle}>
-      <style>{spinnerStyle}</style>
+      <style>{animationStyles}</style>
+      
+      {/* Animated Background Elements */}
+      <div style={{
+        position: "absolute",
+        top: "10%",
+        left: "10%",
+        width: "100px",
+        height: "100px",
+        background: darkMode 
+          ? "linear-gradient(45deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1))"
+          : "linear-gradient(45deg, rgba(102, 126, 234, 0.1), rgba(240, 147, 251, 0.1))",
+        borderRadius: "50%",
+        animation: "float 6s ease-in-out infinite",
+        zIndex: 1,
+      }} />
+      
+      <div style={{
+        position: "absolute",
+        top: "60%",
+        right: "15%",
+        width: "80px",
+        height: "80px",
+        background: darkMode 
+          ? "linear-gradient(135deg, rgba(6, 182, 212, 0.15), rgba(139, 92, 246, 0.15))"
+          : "linear-gradient(135deg, rgba(245, 87, 108, 0.15), rgba(102, 126, 234, 0.15))",
+        borderRadius: "20px",
+        animation: "pulse 4s ease-in-out infinite",
+        zIndex: 1,
+      }} />
+      
+      <div style={{
+        position: "absolute",
+        top: "20%",
+        right: "5%",
+        width: "60px",
+        height: "60px",
+        border: darkMode 
+          ? "2px solid rgba(99, 102, 241, 0.2)"
+          : "2px solid rgba(240, 147, 251, 0.2)",
+        borderRadius: "50%",
+        animation: "drift 20s linear infinite",
+        zIndex: 1,
+      }} />
+      
+      <div style={{
+        position: "absolute",
+        bottom: "10%",
+        left: "5%",
+        width: "120px",
+        height: "120px",
+        background: darkMode 
+          ? "conic-gradient(from 0deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1), rgba(6, 182, 212, 0.1))"
+          : "conic-gradient(from 0deg, rgba(102, 126, 234, 0.1), rgba(240, 147, 251, 0.1), rgba(245, 87, 108, 0.1))",
+        borderRadius: "30px",
+        animation: "float 8s ease-in-out infinite reverse",
+        zIndex: 1,
+      }} />
+      
       <button
         onClick={() => setDarkMode(!darkMode)}
         style={toggleStyle}
@@ -180,7 +264,9 @@ export default function AuthForm({ setUsername }) {
             width: "64px",
             height: "64px",
             borderRadius: "50%",
-            backgroundColor: darkMode ? "#0ea5a4" : "#2563eb",
+            background: darkMode 
+              ? "linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #06b6d4 100%)"
+              : "linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -279,8 +365,8 @@ export default function AuthForm({ setUsername }) {
             type="submit" 
             style={buttonStyle}
             disabled={loading}
-            onMouseEnter={(e) => !loading && (e.target.style.backgroundColor = darkMode ? "#0d9488" : "#1d4ed8")}
-            onMouseLeave={(e) => !loading && (e.target.style.backgroundColor = darkMode ? "#0ea5a4" : "#2563eb")}
+            onMouseEnter={(e) => !loading && (e.target.style.transform = "translateY(-2px)")}
+            onMouseLeave={(e) => !loading && (e.target.style.transform = "translateY(0px)")}
           >
             {loading ? (
               <span style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
