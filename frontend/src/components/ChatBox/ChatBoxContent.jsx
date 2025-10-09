@@ -1040,13 +1040,61 @@ export default function ChatBoxContent({ username, onLogout }) {
       
       <div style={inputBarStyle}>
         <div style={{ position: "relative", flex: 1 }}>
+          <div style={{
+            position: "absolute",
+            left: 8,
+            top: "50%",
+            transform: "translateY(-50%)",
+            display: "flex",
+            gap: "4px",
+            zIndex: 10,
+          }}>
+            <button
+              onClick={() => {
+                const formats = ['**bold**', '*italic*', '`code`'];
+                const randomFormat = formats[Math.floor(Math.random() * formats.length)];
+                setInput(prev => prev + randomFormat);
+              }}
+              style={{
+                padding: "4px 6px",
+                borderRadius: 4,
+                border: "none",
+                backgroundColor: darkMode ? '#374151' : '#e5e7eb',
+                color: darkMode ? '#fff' : '#111827',
+                cursor: "pointer",
+                fontSize: "12px",
+                fontWeight: "bold",
+              }}
+              title="Format text (*bold* _italic_ `code` @mention)"
+            >
+              B
+            </button>
+            <button
+              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+              style={{
+                padding: "4px 6px",
+                borderRadius: 4,
+                border: "none",
+                backgroundColor: showEmojiPicker ? (darkMode ? '#0ea5a4' : '#2563eb') : (darkMode ? '#374151' : '#e5e7eb'),
+                color: showEmojiPicker ? '#fff' : (darkMode ? '#fff' : '#111827'),
+                cursor: "pointer",
+                fontSize: "12px",
+              }}
+              title="Emoji picker"
+            >
+              😀
+            </button>
+          </div>
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="Type your message... (*bold* _italic_ `code` @mention)"
-            style={inputStyle}
+            placeholder="Type your message..."
+            style={{
+              ...inputStyle,
+              paddingLeft: "70px",
+            }}
           />
           {showEmojiPicker && (
             <div style={{
@@ -1102,33 +1150,6 @@ export default function ChatBoxContent({ username, onLogout }) {
           style={{ display: 'none' }}
           accept="image/*,application/pdf,.txt,.doc,.docx"
         />
-        <button
-          onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-          style={{
-            ...btnStyle,
-            backgroundColor: showEmojiPicker ? (darkMode ? '#0ea5a4' : '#2563eb') : (darkMode ? '#6b7280' : '#9ca3af'),
-            padding: isMobile ? "8px 10px" : "10px 12px",
-          }}
-          title="Emoji picker"
-        >
-          😀
-        </button>
-        <button
-          onClick={() => {
-            const formats = ['**bold**', '*italic*', '`code`'];
-            const randomFormat = formats[Math.floor(Math.random() * formats.length)];
-            setInput(prev => prev + randomFormat);
-          }}
-          style={{
-            ...btnStyle,
-            backgroundColor: darkMode ? '#6b7280' : '#9ca3af',
-            padding: isMobile ? "8px 10px" : "10px 12px",
-            fontSize: isMobile ? '12px' : '14px',
-          }}
-          title="Format text (*bold* _italic_ `code` @mention)"
-        >
-          B
-        </button>
         <button
           onClick={() => {
             const newKeyword = prompt('Add keyword for notifications:', '');
