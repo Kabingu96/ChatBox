@@ -25,7 +25,9 @@ export default function ChatBoxContent({ username, onLogout }) {
   const [editInput, setEditInput] = useState("");
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [typingUsers, setTypingUsers] = useState([]);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const endRef = useRef(null);
+  const audioRef = useRef(null);
 
   // Resolve backend base URL with env overrides for production
   const isSecure = window.location.protocol === "https:";
@@ -52,6 +54,19 @@ export default function ChatBoxContent({ username, onLogout }) {
     };
     fetchDarkMode();
   }, [username, backendHttp]);
+
+  // Request notification permission on mount
+  useEffect(() => {
+    if ('Notification' in window) {
+      if (Notification.permission === 'granted') {
+        setNotificationsEnabled(true);
+      } else if (Notification.permission === 'default') {
+        Notification.requestPermission().then(permission => {
+          setNotificationsEnabled(permission === 'granted');
+        });
+      }
+    }
+  }, []);
 
   // Open WebSocket once
   useEffect(() => {
@@ -94,6 +109,12 @@ export default function ChatBoxContent({ username, onLogout }) {
             reactions: payload.reactions || {},
           };
           setMessages((prev) => [...prev, incoming]);
+          
+          // Play notification sound and show notification for messages from others
+          if (payload.username !== username) {
+            playNotificationSound();
+            showNotification(payload.username, payload.text);
+          }
         }
 
         // deleted message
@@ -222,6 +243,29 @@ export default function ChatBoxContent({ username, onLogout }) {
     }));
   };
 
+  const playNotificationSound = () => {
+    if (document.hidden && audioRef.current) {
+      audioRef.current.play().catch(e => console.log('Audio play failed:', e));
+    }
+  };
+
+  const showNotification = (sender, text) => {
+    if (notificationsEnabled && document.hidden) {
+      const notification = new Notification(`${sender} says:`, {
+        body: text.length > 50 ? text.substring(0, 50) + '...' : text,
+        icon: '/favicon.ico',
+        tag: 'chatbox-message'
+      });
+      
+      notification.onclick = () => {
+        window.focus();
+        notification.close();
+      };
+      
+      setTimeout(() => notification.close(), 5000);
+    }
+  };
+
   const onKeyDown = (e) => {
     if (e.key === "Enter") {
       sendMessage();
@@ -320,6 +364,26 @@ export default function ChatBoxContent({ username, onLogout }) {
             }}
           >
             {darkMode ? "Light Mode" : "Dark Mode"}
+          </button>
+          <button
+            onClick={() => {
+              if ('Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission().then(permission => {
+                  setNotificationsEnabled(permission === 'granted');
+                });
+              }
+            }}
+            style={{
+              padding: "6px 10px",
+              borderRadius: 8,
+              border: "1px solid transparent",
+              backgroundColor: notificationsEnabled ? (darkMode ? "#059669" : "#10b981") : (darkMode ? "#6b7280" : "#9ca3af"),
+              color: "#fff",
+              cursor: "pointer",
+              fontSize: "12px",
+            }}
+          >
+            🔔
           </button>
           <button
             onClick={onLogout}
@@ -477,6 +541,10 @@ export default function ChatBoxContent({ username, onLogout }) {
         </button>
       </div>
       </div>
+      
+      <audio ref={audioRef} preload="auto">
+        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBC13yO/eizEIHWq+8+OWT" type="audio/wav" />
+      </audio>
       
       <div style={sidebarStyle}>
         <h3 style={{ margin: "0 0 12px 0", fontSize: "14px", fontWeight: "600" }}>
