@@ -123,17 +123,42 @@ func newHub() *Hub {
     }
 }
 
+func (h *Hub) broadcastUserList() {
+    users := make([]string, 0, len(h.clients))
+    for client := range h.clients {
+        users = append(users, client.username)
+    }
+    
+    payload := struct {
+        Type  string   `json:"type"`
+        Users []string `json:"users"`
+    }{Type: "users", Users: users}
+    
+    if b, err := json.Marshal(payload); err == nil {
+        for client := range h.clients {
+            select {
+            case client.send <- b:
+            default:
+                close(client.send)
+                delete(h.clients, client)
+            }
+        }
+    }
+}
+
 func (h *Hub) run() {
     for {
         select {
         case client := <-h.register:
             h.clients[client] = true
             log.Println("✅ Client connected:", client.username)
+            h.broadcastUserList()
         case client := <-h.unregister:
             if _, ok := h.clients[client]; ok {
                 delete(h.clients, client)
                 close(client.send)
                 log.Println("❌ Client disconnected:", client.username)
+                h.broadcastUserList()
             }
         case b := <-h.broadcast:
             for client := range h.clients {
@@ -331,6 +356,22 @@ func serveWs(h *Hub, username string, w http.ResponseWriter, r *http.Request) {
         if b, err := json.Marshal(payload); err == nil {
             conn.WriteMessage(websocket.TextMessage, b)
         }
+    }
+    
+    // Send current user list to new client
+    users := make([]string, 0, len(h.clients))
+    for c := range h.clients {
+        users = append(users, c.username)
+    }
+    users = append(users, username) // Include the new user
+    
+    userPayload := struct {
+        Type  string   `json:"type"`
+        Users []string `json:"users"`
+    }{Type: "users", Users: users}
+    
+    if b, err := json.Marshal(userPayload); err == nil {
+        conn.WriteMessage(websocket.TextMessage, b)
     }
 
     go client.readPump()

@@ -7,6 +7,7 @@ export default function ChatBoxContent({ username, onLogout }) {
   const [darkMode, setDarkMode] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [editInput, setEditInput] = useState("");
+  const [onlineUsers, setOnlineUsers] = useState([]);
   const endRef = useRef(null);
 
   // Resolve backend base URL with env overrides for production
@@ -87,6 +88,11 @@ export default function ChatBoxContent({ username, onLogout }) {
             prev.map((m) => (m.id === payload.id ? { ...m, text: payload.text } : m))
           );
         }
+
+        // online users list
+        if (payload.type === "users" && Array.isArray(payload.users)) {
+          setOnlineUsers(payload.users);
+        }
       } catch (err) {
         console.error("Invalid message received:", event.data);
       }
@@ -161,11 +167,22 @@ export default function ChatBoxContent({ username, onLogout }) {
 
   const containerStyle = {
     display: "flex",
-    flexDirection: "column",
     height: "100vh",
     backgroundColor: darkMode ? "#0f1720" : "#f3f4f6",
     color: darkMode ? "#e5e7eb" : "#0f1720",
     fontFamily: "Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial",
+  };
+  const chatContainerStyle = {
+    display: "flex",
+    flexDirection: "column",
+    flex: 1,
+  };
+  const sidebarStyle = {
+    width: "200px",
+    backgroundColor: darkMode ? "#0b1220" : "#ffffff",
+    borderLeft: `1px solid ${darkMode ? "#1f2937" : "#e5e7eb"}`,
+    padding: "16px",
+    overflowY: "auto",
   };
   const headerStyle = {
     display: "flex",
@@ -209,6 +226,7 @@ export default function ChatBoxContent({ username, onLogout }) {
 
   return (
     <div style={containerStyle}>
+      <div style={chatContainerStyle}>
       <div style={headerStyle}>
         <div>
           <strong style={{ fontSize: 18 }}>ChatBox</strong>
@@ -334,6 +352,37 @@ export default function ChatBoxContent({ username, onLogout }) {
         <button onClick={sendMessage} style={btnStyle}>
           Send
         </button>
+      </div>
+      </div>
+      
+      <div style={sidebarStyle}>
+        <h3 style={{ margin: "0 0 12px 0", fontSize: "14px", fontWeight: "600" }}>
+          Online Users ({onlineUsers.length})
+        </h3>
+        {onlineUsers.map((user, index) => (
+          <div
+            key={index}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              padding: "6px 0",
+              fontSize: "13px",
+            }}
+          >
+            <div
+              style={{
+                width: "8px",
+                height: "8px",
+                borderRadius: "50%",
+                backgroundColor: "#10b981",
+                marginRight: "8px",
+              }}
+            />
+            <span style={{ fontWeight: user === username ? "600" : "400" }}>
+              {user === username ? "You" : user}
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   );
