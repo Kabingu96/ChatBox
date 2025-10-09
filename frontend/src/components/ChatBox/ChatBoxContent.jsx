@@ -87,7 +87,7 @@ export default function ChatBoxContent({ username, onLogout }) {
 
         // ack from server to map local temp id -> real id
         if (payload.type === "ack" && payload.clientId && payload.id) {
-          setMessages((prev) => prev.map((m) => (m.id === payload.clientId ? { ...m, id: payload.id } : m)));
+          setMessages((prev) => prev.map((m) => (m.id === payload.clientId ? { ...m, id: payload.id, status: "sent" } : m)));
           return;
         }
 
@@ -103,6 +103,7 @@ export default function ChatBoxContent({ username, onLogout }) {
             fileUrl: m.fileUrl,
             fileType: m.fileType,
             fileName: m.fileName,
+            status: "delivered",
           }));
           setMessages((prev) => [...prev, ...hist]);
           return;
@@ -120,6 +121,7 @@ export default function ChatBoxContent({ username, onLogout }) {
             fileUrl: payload.fileUrl,
             fileType: payload.fileType,
             fileName: payload.fileName,
+            status: "delivered",
           };
           setMessages((prev) => [...prev, incoming]);
           
@@ -227,6 +229,7 @@ export default function ChatBoxContent({ username, onLogout }) {
       fileUrl: null,
       fileType: null,
       fileName: null,
+      status: "sending",
     };
     setMessages((prev) => [...prev, local]);
 
@@ -322,6 +325,7 @@ export default function ChatBoxContent({ username, onLogout }) {
         fileUrl: result.fileUrl,
         fileType: result.fileType,
         fileName: result.fileName,
+        status: "sending",
       };
       
       setMessages((prev) => [...prev, fileMessage]);
@@ -664,7 +668,16 @@ export default function ChatBoxContent({ username, onLogout }) {
                   </>
                 )}
 
-                <div style={tsStyle} title={m.timestamp}>{formatTimeAgo(m.timestamp)}</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
+                  <div style={tsStyle} title={m.timestamp}>{formatTimeAgo(m.timestamp)}</div>
+                  {isMine && (
+                    <div style={{ fontSize: 10, opacity: 0.6, marginLeft: 8 }}>
+                      {m.status === "sending" && "⏳"}
+                      {m.status === "sent" && "✓"}
+                      {m.status === "delivered" && "✓✓"}
+                    </div>
+                  )}
+                </div>
 
                 {/* Reactions */}
                 {m.reactions && Object.keys(m.reactions).length > 0 && (
