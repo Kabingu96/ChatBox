@@ -84,6 +84,7 @@ export default function AuthForm({ setUsername }) {
     marginBottom: "16px",
     outline: "none",
     transition: "border-color 0.2s",
+    boxSizing: "border-box",
   };
 
   const buttonStyle = {
@@ -187,6 +188,7 @@ export default function AuthForm({ setUsername }) {
               style={{
                 ...inputStyle,
                 paddingRight: "48px",
+                boxSizing: "border-box",
               }}
               onFocus={(e) => e.target.style.borderColor = darkMode ? "#0ea5a4" : "#2563eb"}
               onBlur={(e) => e.target.style.borderColor = darkMode ? "#374151" : "#d1d5db"}
