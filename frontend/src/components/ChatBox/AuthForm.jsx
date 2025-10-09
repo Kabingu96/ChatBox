@@ -156,8 +156,17 @@ export default function AuthForm({ setUsername }) {
     fontSize: "12px",
   };
 
+  // Add CSS animation for spinner
+  const spinnerStyle = `
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  `;
+
   return (
     <div style={containerStyle}>
+      <style>{spinnerStyle}</style>
       <button
         onClick={() => setDarkMode(!darkMode)}
         style={toggleStyle}
@@ -196,7 +205,11 @@ export default function AuthForm({ setUsername }) {
             value={usernameInput}
             onChange={(e) => setUsernameInput(e.target.value)}
             required
-            style={inputStyle}
+            style={{
+              ...inputStyle,
+              opacity: loading ? 0.6 : 1,
+            }}
+            disabled={loading}
             onFocus={(e) => e.target.style.borderColor = darkMode ? "#0ea5a4" : "#2563eb"}
             onBlur={(e) => e.target.style.borderColor = darkMode ? "#374151" : "#d1d5db"}
             onKeyDown={(e) => handleKeyDown(e, 'username')}
@@ -213,7 +226,9 @@ export default function AuthForm({ setUsername }) {
                 ...inputStyle,
                 paddingRight: "48px",
                 boxSizing: "border-box",
+                opacity: loading ? 0.6 : 1,
               }}
+              disabled={loading}
               onFocus={(e) => e.target.style.borderColor = darkMode ? "#0ea5a4" : "#2563eb"}
               onBlur={(e) => e.target.style.borderColor = darkMode ? "#374151" : "#d1d5db"}
             />
@@ -253,6 +268,7 @@ export default function AuthForm({ setUsername }) {
                   marginRight: "8px",
                   accentColor: darkMode ? "#0ea5a4" : "#2563eb",
                 }}
+                disabled={loading}
               />
               <label htmlFor="rememberMe" style={{ cursor: "pointer" }}>
                 Remember me
@@ -266,7 +282,21 @@ export default function AuthForm({ setUsername }) {
             onMouseEnter={(e) => !loading && (e.target.style.backgroundColor = darkMode ? "#0d9488" : "#1d4ed8")}
             onMouseLeave={(e) => !loading && (e.target.style.backgroundColor = darkMode ? "#0ea5a4" : "#2563eb")}
           >
-            {loading ? "Please wait..." : (isLogin ? "Sign In" : "Create Account")}
+            {loading ? (
+              <span style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <span style={{
+                  display: "inline-block",
+                  width: "16px",
+                  height: "16px",
+                  border: "2px solid transparent",
+                  borderTop: "2px solid #ffffff",
+                  borderRadius: "50%",
+                  animation: "spin 1s linear infinite",
+                  marginRight: "8px",
+                }} />
+                Please wait...
+              </span>
+            ) : (isLogin ? "Sign In" : "Create Account")}
           </button>
         </form>
         
