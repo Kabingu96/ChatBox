@@ -25,20 +25,21 @@ const getAvatar = (username) => {
   return { color, initial };
 };
 
-// Format message text with markdown-style formatting
-const formatMessage = (text) => {
+// Format message text with markdown-style formatting and @mentions
+const formatMessage = (text, currentUsername) => {
   if (!text) return null;
   
   const parts = [];
   let currentIndex = 0;
   
-  // Regex patterns for formatting
+  // Regex patterns for formatting (including @mentions)
   const patterns = [
     { regex: /\*\*(.*?)\*\*/g, tag: 'strong' },
     { regex: /\*(.*?)\*/g, tag: 'em' },
     { regex: /__(.*?)__/g, tag: 'strong' },
     { regex: /_(.*?)_/g, tag: 'em' },
     { regex: /`(.*?)`/g, tag: 'code' },
+    { regex: /@(\w+)/g, tag: 'mention' },
   ];
   
   const matches = [];
@@ -98,6 +99,19 @@ const formatMessage = (text) => {
           fontSize: '0.9em' 
         } 
       }, match.content));
+    } else if (match.tag === 'mention') {
+      const isCurrentUser = match.content.toLowerCase() === currentUsername.toLowerCase();
+      elements.push(React.createElement('span', { 
+        key, 
+        style: { 
+          backgroundColor: isCurrentUser ? '#fbbf24' : '#3b82f6',
+          color: isCurrentUser ? '#000' : '#fff',
+          padding: '2px 6px', 
+          borderRadius: 12, 
+          fontSize: '0.9em',
+          fontWeight: 'bold'
+        } 
+      }, `@${match.content}`));
     }
     
     lastIndex = match.end;
@@ -129,6 +143,7 @@ export default function ChatBoxContent({ username, onLogout }) {
   const [showSidebar, setShowSidebar] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [keywords, setKeywords] = useState(['urgent', 'help', 'meeting']);
   const endRef = useRef(null);
   const audioRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -382,20 +397,41 @@ export default function ChatBoxContent({ username, onLogout }) {
     }
   };
 
-  const showNotification = (sender, text) => {
-    if (notificationsEnabled && document.hidden) {
-      const notification = new Notification(`${sender} says:`, {
-        body: text.length > 50 ? text.substring(0, 50) + '...' : text,
-        icon: '/favicon.ico',
-        tag: 'chatbox-message'
-      });
+  const showNotification = (sender, text, isSpecial = false) => {
+    if (notificationsEnabled) {
+      // Check for @mentions
+      const isMentioned = text.toLowerCase().includes(`@${username.toLowerCase()}`);
       
-      notification.onclick = () => {
-        window.focus();
-        notification.close();
-      };
+      // Check for keywords
+      const hasKeyword = keywords.some(keyword => 
+        text.toLowerCase().includes(keyword.toLowerCase())
+      );
       
-      setTimeout(() => notification.close(), 5000);
+      // Show notification if hidden OR if mentioned/keyword
+      if (document.hidden || isMentioned || hasKeyword || isSpecial) {
+        let title = `${sender} says:`;
+        let body = text.length > 50 ? text.substring(0, 50) + '...' : text;
+        
+        if (isMentioned) {
+          title = `🔔 ${sender} mentioned you:`;
+        } else if (hasKeyword) {
+          title = `⚠️ ${sender} (keyword alert):`;
+        }
+        
+        const notification = new Notification(title, {
+          body,
+          icon: '/favicon.ico',
+          tag: 'chatbox-message',
+          requireInteraction: isMentioned || hasKeyword
+        });
+        
+        notification.onclick = () => {
+          window.focus();
+          notification.close();
+        };
+        
+        setTimeout(() => notification.close(), isMentioned || hasKeyword ? 10000 : 5000);
+      }
     }
   };
 
@@ -798,7 +834,7 @@ export default function ChatBoxContent({ username, onLogout }) {
                   </>
                 ) : (
                   <>
-                    {m.text && <div style={textStyle}>{formatMessage(m.text)}</div>}
+                    {m.text && <div style={textStyle}>{formatMessage(m.text, username)}</div>}
                     {m.fileUrl && (
                       <div style={{ marginTop: m.text ? 8 : 0 }}>
                         {m.fileType && m.fileType.startsWith('image/') ? (
@@ -1009,7 +1045,7 @@ export default function ChatBoxContent({ username, onLogout }) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="Type your message... (*bold* _italic_ `code`)"
+            placeholder="Type your message... (*bold* _italic_ `code` @mention)"
             style={inputStyle}
           />
           {showEmojiPicker && (
@@ -1089,9 +1125,26 @@ export default function ChatBoxContent({ username, onLogout }) {
             padding: isMobile ? "8px 10px" : "10px 12px",
             fontSize: isMobile ? '12px' : '14px',
           }}
-          title="Format text (*bold* _italic_ `code`)"
+          title="Format text (*bold* _italic_ `code` @mention)"
         >
           B
+        </button>
+        <button
+          onClick={() => {
+            const newKeyword = prompt('Add keyword for notifications:', '');
+            if (newKeyword && newKeyword.trim()) {
+              setKeywords(prev => [...prev, newKeyword.trim().toLowerCase()]);
+            }
+          }}
+          style={{
+            ...btnStyle,
+            backgroundColor: darkMode ? '#6b7280' : '#9ca3af',
+            padding: isMobile ? "8px 10px" : "10px 12px",
+            fontSize: isMobile ? '12px' : '14px',
+          }}
+          title={`Keyword alerts: ${keywords.join(', ')}`}
+        >
+          🔔
         </button>
         <button 
           onClick={() => fileInputRef.current?.click()}
