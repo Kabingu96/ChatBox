@@ -93,10 +93,12 @@ type Client struct {
     send     chan []byte
     hub      *Hub
     username string
+    room     string
 }
 
 type Hub struct {
     clients    map[*Client]bool
+    rooms      map[string]map[*Client]bool
     register   chan *Client
     unregister chan *Client
     broadcast  chan Broadcast
@@ -116,11 +118,13 @@ type Message struct {
     FileURL   string             `json:"fileUrl,omitempty"`
     FileType  string             `json:"fileType,omitempty"`
     FileName  string             `json:"fileName,omitempty"`
+    Room      string             `json:"room,omitempty"`
 }
 
 func newHub() *Hub {
     return &Hub{
         clients:    make(map[*Client]bool),
+        rooms:      make(map[string]map[*Client]bool),
         register:   make(chan *Client),
         unregister: make(chan *Client),
         broadcast:  make(chan Broadcast),
@@ -128,23 +132,28 @@ func newHub() *Hub {
 }
 
 func (h *Hub) broadcastUserList() {
-    users := make([]string, 0, len(h.clients))
-    for client := range h.clients {
-        users = append(users, client.username)
-    }
-    
-    payload := struct {
-        Type  string   `json:"type"`
-        Users []string `json:"users"`
-    }{Type: "users", Users: users}
-    
-    if b, err := json.Marshal(payload); err == nil {
-        for client := range h.clients {
-            select {
-            case client.send <- b:
-            default:
-                close(client.send)
-                delete(h.clients, client)
+    // Broadcast user list per room
+    for room, roomClients := range h.rooms {
+        users := make([]string, 0, len(roomClients))
+        for client := range roomClients {
+            users = append(users, client.username)
+        }
+        
+        payload := struct {
+            Type  string   `json:"type"`
+            Users []string `json:"users"`
+            Room  string   `json:"room"`
+        }{Type: "users", Users: users, Room: room}
+        
+        if b, err := json.Marshal(payload); err == nil {
+            for client := range roomClients {
+                select {
+                case client.send <- b:
+                default:
+                    close(client.send)
+                    delete(h.clients, client)
+                    delete(roomClients, client)
+                }
             }
         }
     }
@@ -155,25 +164,57 @@ func (h *Hub) run() {
         select {
         case client := <-h.register:
             h.clients[client] = true
-            log.Println("✅ Client connected:", client.username)
+            
+            // Add to room
+            if h.rooms[client.room] == nil {
+                h.rooms[client.room] = make(map[*Client]bool)
+            }
+            h.rooms[client.room][client] = true
+            
+            log.Println("✅ Client connected:", client.username, "in room:", client.room)
             h.broadcastUserList()
         case client := <-h.unregister:
             if _, ok := h.clients[client]; ok {
                 delete(h.clients, client)
+                
+                // Remove from room
+                if roomClients, exists := h.rooms[client.room]; exists {
+                    delete(roomClients, client)
+                    if len(roomClients) == 0 {
+                        delete(h.rooms, client.room)
+                    }
+                }
+                
                 close(client.send)
-                log.Println("❌ Client disconnected:", client.username)
+                log.Println("❌ Client disconnected:", client.username, "from room:", client.room)
                 h.broadcastUserList()
             }
         case b := <-h.broadcast:
-            for client := range h.clients {
-                if client == b.sender {
-                    continue
+            // Broadcast only to clients in the same room
+            if b.sender != nil {
+                if roomClients, exists := h.rooms[b.sender.room]; exists {
+                    for client := range roomClients {
+                        if client == b.sender {
+                            continue
+                        }
+                        select {
+                        case client.send <- b.message:
+                        default:
+                            close(client.send)
+                            delete(h.clients, client)
+                            delete(roomClients, client)
+                        }
+                    }
                 }
-                select {
-                case client.send <- b.message:
-                default:
-                    close(client.send)
-                    delete(h.clients, client)
+            } else {
+                // Global broadcast (for system messages)
+                for client := range h.clients {
+                    select {
+                    case client.send <- b.message:
+                    default:
+                        close(client.send)
+                        delete(h.clients, client)
+                    }
                 }
             }
         }
@@ -198,7 +239,7 @@ func saveMessage(m Message) int64 {
     return m.ID
 }
 
-func loadRecentMessages(limit int) []Message {
+func loadRecentMessages(limit int, room string) []Message {
     if useDB {
         msgs, err := dbLoadRecentMessages(context.Background(), limit)
         if err != nil {
@@ -209,16 +250,25 @@ func loadRecentMessages(limit int) []Message {
     }
     messagesMu.RLock()
     defer messagesMu.RUnlock()
-    if limit <= 0 || limit > len(messagesList) {
-        limit = len(messagesList)
+    
+    // Filter messages by room
+    roomMessages := make([]Message, 0)
+    for _, msg := range messagesList {
+        if msg.Room == room {
+            roomMessages = append(roomMessages, msg)
+        }
     }
-    start := len(messagesList) - limit
+    
+    if limit <= 0 || limit > len(roomMessages) {
+        limit = len(roomMessages)
+    }
+    start := len(roomMessages) - limit
     if start < 0 {
         start = 0
     }
-    // return a copy to avoid external mutation
+    
     out := make([]Message, limit)
-    copy(out, messagesList[start:])
+    copy(out, roomMessages[start:])
     return out
 }
 
@@ -378,6 +428,7 @@ func (c *Client) readPump() {
             FileURL:   inc.FileURL,
             FileType:  inc.FileType,
             FileName:  inc.FileName,
+            Room:      c.room,
         }
 
         id := saveMessage(out)
@@ -423,7 +474,7 @@ func (c *Client) writePump() {
     }
 }
 
-func serveWs(h *Hub, username string, w http.ResponseWriter, r *http.Request) {
+func serveWs(h *Hub, username, room string, w http.ResponseWriter, r *http.Request) {
     conn, err := upgrader.Upgrade(w, r, nil)
     if err != nil {
         log.Println("upgrade error:", err)
@@ -434,10 +485,11 @@ func serveWs(h *Hub, username string, w http.ResponseWriter, r *http.Request) {
         send:     make(chan []byte, 256),
         hub:      h,
         username: username,
+        room:     room,
     }
     h.register <- client
 
-    history := loadRecentMessages(200)
+    history := loadRecentMessages(200, room)
     if len(history) > 0 {
         payload := struct {
             Type     string    `json:"type"`
@@ -787,14 +839,18 @@ func main() {
     // Serve uploaded files
     http.Handle("/files/", http.StripPrefix("/files/", http.FileServer(http.Dir("uploads/"))))
 
-    // WebSocket endpoint expects ?username=XYZ from frontend after login
+    // WebSocket endpoint expects ?username=XYZ&room=ABC from frontend after login
     http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
         username := r.URL.Query().Get("username")
+        room := r.URL.Query().Get("room")
         if username == "" {
             http.Error(w, "Username required", http.StatusBadRequest)
             return
         }
-        serveWs(hub, username, w, r)
+        if room == "" {
+            room = "general" // Default room
+        }
+        serveWs(hub, username, room, w, r)
     })
 
     port := os.Getenv("PORT")

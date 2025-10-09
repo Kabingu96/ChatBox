@@ -29,6 +29,8 @@ export default function ChatBoxContent({ username, onLogout }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [currentRoom, setCurrentRoom] = useState('general');
+  const [availableRooms] = useState(['general', 'random', 'tech', 'gaming']);
   const endRef = useRef(null);
   const audioRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -74,9 +76,9 @@ export default function ChatBoxContent({ username, onLogout }) {
 
   // Open WebSocket once
   useEffect(() => {
-    const socket = new WebSocket(`${backendWs}/ws?username=${username}`);
+    const socket = new WebSocket(`${backendWs}/ws?username=${username}&room=${currentRoom}`);
 
-    socket.onopen = () => console.log("✅ WebSocket connected");
+    socket.onopen = () => console.log("✅ WebSocket connected to room:", currentRoom);
 
     socket.onmessage = (event) => {
       try {
@@ -141,8 +143,10 @@ export default function ChatBoxContent({ username, onLogout }) {
 
         // online users list
         if (payload.type === "users" && Array.isArray(payload.users)) {
-          console.log('Received users list:', payload.users);
-          setOnlineUsers(payload.users);
+          console.log('Received users list for room:', payload.room, payload.users);
+          if (payload.room === currentRoom) {
+            setOnlineUsers(payload.users);
+          }
         }
 
         // typing indicator
@@ -170,7 +174,7 @@ export default function ChatBoxContent({ username, onLogout }) {
     return () => {
       socket.close();
     };
-  }, [username, backendWs]);
+  }, [username, backendWs, currentRoom]);
 
   // Scroll to bottom
   useEffect(() => {
@@ -218,7 +222,7 @@ export default function ChatBoxContent({ username, onLogout }) {
     setMessages((prev) => [...prev, local]);
 
     // send to server
-    ws.send(JSON.stringify({ username, text: textTrimmed, timestamp, clientId: local.id }));
+    ws.send(JSON.stringify({ username, text: textTrimmed, timestamp, clientId: local.id, room: currentRoom }));
     setInput("");
   };
 
@@ -322,6 +326,7 @@ export default function ChatBoxContent({ username, onLogout }) {
           fileUrl: result.fileUrl,
           fileType: result.fileType,
           fileName: result.fileName,
+          room: currentRoom,
         }));
       }
     } catch (err) {
@@ -379,7 +384,7 @@ export default function ChatBoxContent({ username, onLogout }) {
     flex: 1,
   };
   const sidebarStyle = {
-    width: "200px",
+    width: "220px",
     backgroundColor: darkMode ? "#0b1220" : "#ffffff",
     borderLeft: `1px solid ${darkMode ? "#1f2937" : "#e5e7eb"}`,
     padding: "16px",
@@ -431,7 +436,7 @@ export default function ChatBoxContent({ username, onLogout }) {
       <div style={headerStyle}>
         <div>
           <strong style={{ fontSize: 18 }}>ChatBox</strong>
-          <div style={{ fontSize: 12, opacity: 0.8 }}>Your username: {username}</div>
+          <div style={{ fontSize: 12, opacity: 0.8 }}>#{currentRoom} • {username}</div>
         </div>
         <div style={{ display: "flex", gap: "8px" }}>
           <button
@@ -742,6 +747,35 @@ export default function ChatBoxContent({ username, onLogout }) {
       
       <div style={sidebarStyle}>
         <h3 style={{ margin: "0 0 12px 0", fontSize: "14px", fontWeight: "600" }}>
+          Rooms
+        </h3>
+        {availableRooms.map((room) => (
+          <div
+            key={room}
+            onClick={() => {
+              if (room !== currentRoom) {
+                setCurrentRoom(room);
+                setMessages([]); // Clear messages when switching rooms
+              }
+            }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              padding: "8px 12px",
+              marginBottom: "4px",
+              borderRadius: 8,
+              cursor: "pointer",
+              backgroundColor: room === currentRoom ? (darkMode ? "#0ea5a4" : "#2563eb") : "transparent",
+              color: room === currentRoom ? "#fff" : (darkMode ? "#e5e7eb" : "#111827"),
+              fontSize: "13px",
+            }}
+          >
+            <span style={{ marginRight: "8px" }}>#</span>
+            {room}
+          </div>
+        ))}
+        
+        <h3 style={{ margin: "16px 0 12px 0", fontSize: "14px", fontWeight: "600" }}>
           Online Users ({onlineUsers.length})
         </h3>
         {onlineUsers.map((user, index) => (
