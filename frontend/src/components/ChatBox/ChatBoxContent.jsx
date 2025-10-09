@@ -28,8 +28,10 @@ export default function ChatBoxContent({ username, onLogout }) {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const endRef = useRef(null);
   const audioRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   // Resolve backend base URL with env overrides for production
   const isSecure = window.location.protocol === "https:";
@@ -109,6 +111,12 @@ export default function ChatBoxContent({ username, onLogout }) {
             timestamp: payload.timestamp || new Date().toLocaleString("en-US", { timeZoneName: "short" }),
             fromUser: payload.username === username,
             reactions: payload.reactions || {},
+            fileUrl: payload.fileUrl,
+            fileType: payload.fileType,
+            fileName: payload.fileName,
+            fileUrl: payload.fileUrl,
+            fileType: payload.fileType,
+            fileName: payload.fileName,
           };
           setMessages((prev) => [...prev, incoming]);
           
@@ -203,6 +211,9 @@ export default function ChatBoxContent({ username, onLogout }) {
       timestamp,
       fromUser: true,
       reactions: {},
+      fileUrl: null,
+      fileType: null,
+      fileName: null,
     };
     setMessages((prev) => [...prev, local]);
 
@@ -267,6 +278,78 @@ export default function ChatBoxContent({ username, onLogout }) {
       
       setTimeout(() => notification.close(), 5000);
     }
+  };
+
+  const handleFileUpload = async (file) => {
+    if (!file) return;
+    
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+      const response = await fetch(`${backendHttp}/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) throw new Error('Upload failed');
+      
+      const result = await response.json();
+      
+      // Send file message
+      const timestamp = new Date().toLocaleString("en-US", { timeZoneName: "short" });
+      const fileMessage = {
+        id: Date.now(),
+        username,
+        text: '',
+        timestamp,
+        fromUser: true,
+        reactions: {},
+        fileUrl: result.fileUrl,
+        fileType: result.fileType,
+        fileName: result.fileName,
+      };
+      
+      setMessages((prev) => [...prev, fileMessage]);
+      
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          username,
+          text: '',
+          timestamp,
+          clientId: fileMessage.id,
+          fileUrl: result.fileUrl,
+          fileType: result.fileType,
+          fileName: result.fileName,
+        }));
+      }
+    } catch (err) {
+      console.error('File upload failed:', err);
+      alert('File upload failed. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      handleFileUpload(file);
+      e.target.value = ''; // Reset input
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      handleFileUpload(file);
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
   };
 
   const onKeyDown = (e) => {
@@ -455,7 +538,11 @@ export default function ChatBoxContent({ username, onLogout }) {
         </div>
       )}
 
-      <div style={messagesWrapStyle}>
+      <div 
+        style={messagesWrapStyle}
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+      >
         {filteredMessages.map((m) => {
           const isMine = !!m.fromUser;
           const wrapperStyle = {
@@ -493,7 +580,43 @@ export default function ChatBoxContent({ username, onLogout }) {
                     </button>
                   </>
                 ) : (
-                  <div style={textStyle}>{m.text}</div>
+                  <>
+                    {m.text && <div style={textStyle}>{m.text}</div>}
+                    {m.fileUrl && (
+                      <div style={{ marginTop: m.text ? 8 : 0 }}>
+                        {m.fileType && m.fileType.startsWith('image/') ? (
+                          <img 
+                            src={`${backendHttp}${m.fileUrl}`}
+                            alt={m.fileName}
+                            style={{
+                              maxWidth: '200px',
+                              maxHeight: '200px',
+                              borderRadius: 8,
+                              cursor: 'pointer'
+                            }}
+                            onClick={() => window.open(`${backendHttp}${m.fileUrl}`, '_blank')}
+                          />
+                        ) : (
+                          <a 
+                            href={`${backendHttp}${m.fileUrl}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              display: 'inline-block',
+                              padding: '8px 12px',
+                              backgroundColor: darkMode ? '#374151' : '#f3f4f6',
+                              borderRadius: 8,
+                              textDecoration: 'none',
+                              color: darkMode ? '#e5e7eb' : '#111827',
+                              fontSize: 12
+                            }}
+                          >
+                            📎 {m.fileName}
+                          </a>
+                        )}
+                      </div>
+                    )}
+                  </>
                 )}
 
                 <div style={tsStyle} title={m.timestamp}>{formatTimeAgo(m.timestamp)}</div>
@@ -590,6 +713,23 @@ export default function ChatBoxContent({ username, onLogout }) {
           placeholder="Type your message..."
           style={inputStyle}
         />
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileSelect}
+          style={{ display: 'none' }}
+          accept="image/*,application/pdf,.txt,.doc,.docx"
+        />
+        <button 
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          style={{
+            ...btnStyle,
+            backgroundColor: uploading ? (darkMode ? '#6b7280' : '#9ca3af') : (darkMode ? '#059669' : '#10b981'),
+          }}
+        >
+          {uploading ? '📤' : '📎'}
+        </button>
         <button onClick={sendMessage} style={btnStyle}>
           Send
         </button>

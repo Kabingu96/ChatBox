@@ -113,6 +113,9 @@ type Message struct {
     Text      string             `json:"text"`
     Timestamp string             `json:"timestamp"`
     Reactions map[string][]string `json:"reactions,omitempty"`
+    FileURL   string             `json:"fileUrl,omitempty"`
+    FileType  string             `json:"fileType,omitempty"`
+    FileName  string             `json:"fileName,omitempty"`
 }
 
 func newHub() *Hub {
@@ -323,6 +326,9 @@ func (c *Client) readPump() {
             IsTyping  bool   `json:"isTyping,omitempty"`
             MessageID int64  `json:"messageId,omitempty"`
             Emoji     string `json:"emoji,omitempty"`
+            FileURL   string `json:"fileUrl,omitempty"`
+            FileType  string `json:"fileType,omitempty"`
+            FileName  string `json:"fileName,omitempty"`
         }
         if err := json.Unmarshal(raw, &inc); err != nil {
             log.Println("unmarshal error:", err)
@@ -359,7 +365,7 @@ func (c *Client) readPump() {
             continue
         }
         
-        if inc.Text == "" {
+        if inc.Text == "" && inc.FileURL == "" {
             continue
         }
 
@@ -369,6 +375,9 @@ func (c *Client) readPump() {
             Text:      inc.Text,
             Timestamp: ts,
             Reactions: make(map[string][]string),
+            FileURL:   inc.FileURL,
+            FileType:  inc.FileType,
+            FileName:  inc.FileName,
         }
 
         id := saveMessage(out)
@@ -716,6 +725,67 @@ func main() {
             http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
         }
     })))
+
+    // File upload endpoint
+    http.Handle("/upload", enableCors(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        if r.Method != http.MethodPost {
+            http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+            return
+        }
+        
+        // Parse multipart form (10MB max)
+        err := r.ParseMultipartForm(10 << 20)
+        if err != nil {
+            http.Error(w, "File too large", http.StatusBadRequest)
+            return
+        }
+        
+        file, header, err := r.FormFile("file")
+        if err != nil {
+            http.Error(w, "No file provided", http.StatusBadRequest)
+            return
+        }
+        defer file.Close()
+        
+        // Create uploads directory if it doesn't exist
+        os.MkdirAll("uploads", 0755)
+        
+        // Generate unique filename
+        filename := fmt.Sprintf("%d_%s", time.Now().Unix(), header.Filename)
+        filepath := fmt.Sprintf("uploads/%s", filename)
+        
+        // Save file
+        dst, err := os.Create(filepath)
+        if err != nil {
+            http.Error(w, "Failed to save file", http.StatusInternalServerError)
+            return
+        }
+        defer dst.Close()
+        
+        if _, err := file.Seek(0, 0); err != nil {
+            http.Error(w, "File error", http.StatusInternalServerError)
+            return
+        }
+        
+        if _, err := dst.ReadFrom(file); err != nil {
+            http.Error(w, "Failed to save file", http.StatusInternalServerError)
+            return
+        }
+        
+        // Return file URL
+        fileURL := fmt.Sprintf("/files/%s", filename)
+        response := map[string]string{
+            "fileUrl": fileURL,
+            "fileName": header.Filename,
+            "fileType": header.Header.Get("Content-Type"),
+        }
+        
+        w.Header().Set("Content-Type", "application/json")
+        json.NewEncoder(w).Encode(response)
+    })))
+    
+    // Serve uploaded files
+    http.Handle("/files/", http.StripPrefix("/files/", http.FileServer(http.Dir("uploads/"))))
 
     // WebSocket endpoint expects ?username=XYZ from frontend after login
     http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
