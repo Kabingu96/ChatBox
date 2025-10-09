@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { apiRequest } from "../../api";
 
 export default function AuthForm({ setUsername }) {
   const [usernameInput, setUsernameInput] = useState("");
@@ -10,9 +11,8 @@ export default function AuthForm({ setUsername }) {
     e.preventDefault();
     const endpoint = isLogin ? "/login" : "/register";
     try {
-      const res = await fetch(`http://localhost:8080${endpoint}`, {
+      const res = await apiRequest(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: usernameInput, password }),
       });
       if (!res.ok) {
