@@ -99,13 +99,16 @@ export default function ChatBoxContent({ username, onLogout }) {
             timestamp: m.timestamp || new Date().toLocaleString("en-US", { timeZoneName: "short" }),
             fromUser: m.username === username,
             reactions: m.reactions || {},
+            fileUrl: m.fileUrl,
+            fileType: m.fileType,
+            fileName: m.fileName,
           }));
           setMessages((prev) => [...prev, ...hist]);
           return;
         }
 
         // single message
-        if (payload.username && payload.text) {
+        if (payload.username && (payload.text || payload.fileUrl)) {
           const incoming = {
             id: payload.id,
             username: payload.username,
@@ -113,9 +116,6 @@ export default function ChatBoxContent({ username, onLogout }) {
             timestamp: payload.timestamp || new Date().toLocaleString("en-US", { timeZoneName: "short" }),
             fromUser: payload.username === username,
             reactions: payload.reactions || {},
-            fileUrl: payload.fileUrl,
-            fileType: payload.fileType,
-            fileName: payload.fileName,
             fileUrl: payload.fileUrl,
             fileType: payload.fileType,
             fileName: payload.fileName,
@@ -175,6 +175,14 @@ export default function ChatBoxContent({ username, onLogout }) {
       socket.close();
     };
   }, [username, backendWs, currentRoom]);
+
+  // Filter messages based on search query
+  const filteredMessages = searchQuery.trim() 
+    ? messages.filter(m => 
+        (m.text && m.text.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (m.username && m.username.toLowerCase().includes(searchQuery.toLowerCase()))
+      )
+    : messages;
 
   // Scroll to bottom
   useEffect(() => {
@@ -363,13 +371,7 @@ export default function ChatBoxContent({ username, onLogout }) {
     }
   };
 
-  // Filter messages based on search query
-  const filteredMessages = searchQuery.trim() 
-    ? messages.filter(m => 
-        m.text.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        m.username.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : messages;
+
 
   const containerStyle = {
     display: "flex",
