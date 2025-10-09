@@ -108,10 +108,11 @@ type Broadcast struct {
 }
 
 type Message struct {
-    ID        int64  `json:"id"`
-    Username  string `json:"username"`
-    Text      string `json:"text"`
-    Timestamp string `json:"timestamp"`
+    ID        int64              `json:"id"`
+    Username  string             `json:"username"`
+    Text      string             `json:"text"`
+    Timestamp string             `json:"timestamp"`
+    Reactions map[string][]string `json:"reactions,omitempty"`
 }
 
 func newHub() *Hub {
@@ -256,6 +257,38 @@ func deleteMessageByID(id int64) bool {
     return false
 }
 
+func toggleReaction(messageID int64, emoji, username string) bool {
+    messagesMu.Lock()
+    defer messagesMu.Unlock()
+    
+    for i := range messagesList {
+        if messagesList[i].ID == messageID {
+            if messagesList[i].Reactions == nil {
+                messagesList[i].Reactions = make(map[string][]string)
+            }
+            
+            users := messagesList[i].Reactions[emoji]
+            
+            // Check if user already reacted with this emoji
+            for j, user := range users {
+                if user == username {
+                    // Remove reaction
+                    messagesList[i].Reactions[emoji] = append(users[:j], users[j+1:]...)
+                    if len(messagesList[i].Reactions[emoji]) == 0 {
+                        delete(messagesList[i].Reactions, emoji)
+                    }
+                    return true
+                }
+            }
+            
+            // Add reaction
+            messagesList[i].Reactions[emoji] = append(users, username)
+            return true
+        }
+    }
+    return false
+}
+
 // -------------------- WebSocket Handlers --------------------
 
 // Helper: get timestamp in optional timezone
@@ -288,6 +321,8 @@ func (c *Client) readPump() {
             ClientID  int64  `json:"clientId,omitempty"`
             Username  string `json:"username,omitempty"`
             IsTyping  bool   `json:"isTyping,omitempty"`
+            MessageID int64  `json:"messageId,omitempty"`
+            Emoji     string `json:"emoji,omitempty"`
         }
         if err := json.Unmarshal(raw, &inc); err != nil {
             log.Println("unmarshal error:", err)
@@ -307,6 +342,23 @@ func (c *Client) readPump() {
             continue
         }
         
+        // Handle reaction
+        if inc.Type == "reaction" && inc.MessageID > 0 && inc.Emoji != "" {
+            if toggleReaction(inc.MessageID, inc.Emoji, c.username) {
+                reactionPayload := struct {
+                    Type      string `json:"type"`
+                    MessageID int64  `json:"messageId"`
+                    Emoji     string `json:"emoji"`
+                    Username  string `json:"username"`
+                }{Type: "reaction", MessageID: inc.MessageID, Emoji: inc.Emoji, Username: c.username}
+                
+                if b, err := json.Marshal(reactionPayload); err == nil {
+                    c.hub.broadcast <- Broadcast{sender: nil, message: b}
+                }
+            }
+            continue
+        }
+        
         if inc.Text == "" {
             continue
         }
@@ -316,6 +368,7 @@ func (c *Client) readPump() {
             Username:  c.username,
             Text:      inc.Text,
             Timestamp: ts,
+            Reactions: make(map[string][]string),
         }
 
         id := saveMessage(out)
@@ -799,6 +852,7 @@ func dbLoadRecentMessages(ctx context.Context, limit int) ([]Message, error) {
             Username: username,
             Text: text,
             Timestamp: ts.Format("2006-01-02 15:04:05 MST"),
+            Reactions: make(map[string][]string),
         })
     }
     // reverse to chronological ascending like in-memory version

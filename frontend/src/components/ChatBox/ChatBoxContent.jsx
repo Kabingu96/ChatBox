@@ -77,6 +77,7 @@ export default function ChatBoxContent({ username, onLogout }) {
             text: m.text,
             timestamp: m.timestamp || new Date().toLocaleString("en-US", { timeZoneName: "short" }),
             fromUser: m.username === username,
+            reactions: m.reactions || {},
           }));
           setMessages((prev) => [...prev, ...hist]);
           return;
@@ -90,6 +91,7 @@ export default function ChatBoxContent({ username, onLogout }) {
             text: payload.text,
             timestamp: payload.timestamp || new Date().toLocaleString("en-US", { timeZoneName: "short" }),
             fromUser: payload.username === username,
+            reactions: payload.reactions || {},
           };
           setMessages((prev) => [...prev, incoming]);
         }
@@ -117,6 +119,11 @@ export default function ChatBoxContent({ username, onLogout }) {
             const filtered = prev.filter(u => u !== payload.username);
             return payload.isTyping ? [...filtered, payload.username] : filtered;
           });
+        }
+
+        // reaction update
+        if (payload.type === "reaction") {
+          setMessages((prev) => [...prev]); // Force re-render
         }
       } catch (err) {
         console.error("Invalid message received:", event.data);
@@ -171,6 +178,7 @@ export default function ChatBoxContent({ username, onLogout }) {
       text: textTrimmed,
       timestamp,
       fromUser: true,
+      reactions: {},
     };
     setMessages((prev) => [...prev, local]);
 
@@ -202,6 +210,16 @@ export default function ChatBoxContent({ username, onLogout }) {
     } catch (err) {
       console.error("Delete failed:", err);
     }
+  };
+
+  const addReaction = (messageId, emoji) => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ 
+      type: "reaction", 
+      messageId, 
+      emoji, 
+      username 
+    }));
   };
 
   const onKeyDown = (e) => {
@@ -362,8 +380,55 @@ export default function ChatBoxContent({ username, onLogout }) {
 
                 <div style={tsStyle} title={m.timestamp}>{formatTimeAgo(m.timestamp)}</div>
 
+                {/* Reactions */}
+                {m.reactions && Object.keys(m.reactions).length > 0 && (
+                  <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 4 }}>
+                    {Object.entries(m.reactions).map(([emoji, users]) => (
+                      <button
+                        key={emoji}
+                        onClick={() => addReaction(m.id, emoji)}
+                        style={{
+                          padding: "2px 6px",
+                          borderRadius: 12,
+                          border: "1px solid",
+                          borderColor: users.includes(username) ? (darkMode ? "#0ea5a4" : "#2563eb") : (darkMode ? "#374151" : "#d1d5db"),
+                          backgroundColor: users.includes(username) ? (darkMode ? "#0f2a2a" : "#dbeafe") : "transparent",
+                          color: darkMode ? "#e5e7eb" : "#111827",
+                          fontSize: 11,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {emoji} {users.length}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Quick reaction buttons */}
+                <div style={{ marginTop: 4, display: "flex", gap: 2 }}>
+                  {["👍", "❤️", "😂"].map(emoji => (
+                    <button
+                      key={emoji}
+                      onClick={() => addReaction(m.id, emoji)}
+                      style={{
+                        padding: "2px 4px",
+                        borderRadius: 8,
+                        border: "none",
+                        backgroundColor: "transparent",
+                        fontSize: 12,
+                        cursor: "pointer",
+                        opacity: 0.6,
+                      }}
+                      onMouseEnter={(e) => e.target.style.opacity = 1}
+                      onMouseLeave={(e) => e.target.style.opacity = 0.6}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+
                 {isMine && editingId !== m.id && (
-                  <div style={{ marginTop: 4, display: "flex", gap: 4 }}>
+                  <div style={{ marginTop: 8, display: "flex", gap: 4 }}>
                     <button
                       onClick={() => {
                         setEditingId(m.id);
