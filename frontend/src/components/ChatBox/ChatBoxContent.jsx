@@ -414,6 +414,10 @@ export default function ChatBoxContent({ username, onLogout }) {
     borderBottom: `1px solid ${darkMode ? "#1f2937" : "#e5e7eb"}`,
     flexWrap: isMobile ? "wrap" : "nowrap",
     gap: isMobile ? "8px" : "0",
+    position: "sticky",
+    top: 0,
+    zIndex: 100,
+    backgroundColor: darkMode ? "#0f1720" : "#f3f4f6",
   };
   const messagesWrapStyle = {
     flex: 1,
@@ -557,6 +561,9 @@ export default function ChatBoxContent({ username, onLogout }) {
           padding: "12px",
           borderBottom: `1px solid ${darkMode ? "#1f2937" : "#e5e7eb"}`,
           backgroundColor: darkMode ? "#0f1720" : "#f9fafb",
+          position: "sticky",
+          top: isMobile ? "64px" : "72px",
+          zIndex: 99,
         }}>
           <input
             type="text"
