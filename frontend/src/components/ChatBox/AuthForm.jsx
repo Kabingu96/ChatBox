@@ -9,6 +9,7 @@ export default function AuthForm({ setUsername }) {
   const [loading, setLoading] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const usernameRef = useRef(null);
   const passwordRef = useRef(null);
 
@@ -235,6 +236,29 @@ export default function AuthForm({ setUsername }) {
               {showPassword ? "🙈" : "👁️"}
             </button>
           </div>
+          {isLogin && (
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              marginBottom: "16px",
+              fontSize: "14px",
+              color: darkMode ? "#9ca3af" : "#6b7280",
+            }}>
+              <input
+                type="checkbox"
+                id="rememberMe"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                style={{
+                  marginRight: "8px",
+                  accentColor: darkMode ? "#0ea5a4" : "#2563eb",
+                }}
+              />
+              <label htmlFor="rememberMe" style={{ cursor: "pointer" }}>
+                Remember me
+              </label>
+            </div>
+          )}
           <button 
             type="submit" 
             style={buttonStyle}
