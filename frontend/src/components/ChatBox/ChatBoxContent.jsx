@@ -131,6 +131,7 @@ export default function ChatBoxContent({ username, onLogout }) {
 
         // online users list
         if (payload.type === "users" && Array.isArray(payload.users)) {
+          console.log('Received users list:', payload.users);
           setOnlineUsers(payload.users);
         }
 
