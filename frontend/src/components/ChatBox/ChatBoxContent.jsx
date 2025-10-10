@@ -151,9 +151,28 @@ export default function ChatBoxContent({ username, onLogout }) {
   const [keywords, setKeywords] = useState(['urgent', 'help', 'meeting']);
   const [connectionStatus, setConnectionStatus] = useState('connecting');
   const [userStatus, setUserStatus] = useState('online');
+  const [searchFilters, setSearchFilters] = useState({
+    dateRange: 'all', // 'today', 'week', 'month', 'all'
+    userFilter: 'all',
+    fileTypeFilter: 'all' // 'images', 'files', 'text', 'all'
+  });
+  const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
+  const [showMarkdownPreview, setShowMarkdownPreview] = useState(false);
+  const [isRichTextMode, setIsRichTextMode] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [userProfile, setUserProfile] = useState({
+    avatar: null,
+    customStatus: '',
+    bio: ''
+  });
+  const [isRecording, setIsRecording] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState(null);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const recordingInterval = useRef(null);
   const endRef = useRef(null);
   const audioRef = useRef(null);
   const fileInputRef = useRef(null);
+  const recordingRef = useRef(null);
 
   // Resolve backend base URL with env overrides for production
   const isSecure = window.location.protocol === "https:";
@@ -200,6 +219,16 @@ export default function ChatBoxContent({ username, onLogout }) {
     
     fetchDarkMode();
     fetchRooms();
+    
+    // Load user profile
+    const savedProfile = localStorage.getItem(`chatbox-profile-${username}`);
+    if (savedProfile) {
+      try {
+        setUserProfile(JSON.parse(savedProfile));
+      } catch (err) {
+        console.error('Failed to load profile:', err);
+      }
+    }
   }, [username, backendHttp]);
 
   // Request notification permission on mount
@@ -334,13 +363,60 @@ export default function ChatBoxContent({ username, onLogout }) {
     };
   }, [username, backendWs, currentRoom]);
 
-  // Filter messages based on search query
-  const filteredMessages = searchQuery.trim() 
-    ? messages.filter(m => 
+  // Advanced message filtering
+  const filteredMessages = (() => {
+    let filtered = messages;
+    
+    // Text search
+    if (searchQuery.trim()) {
+      filtered = filtered.filter(m => 
         (m.text && m.text.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (m.username && m.username.toLowerCase().includes(searchQuery.toLowerCase()))
-      )
-    : messages;
+      );
+    }
+    
+    // Date range filter
+    if (searchFilters.dateRange !== 'all') {
+      const now = new Date();
+      const cutoff = new Date();
+      
+      switch (searchFilters.dateRange) {
+        case 'today':
+          cutoff.setHours(0, 0, 0, 0);
+          break;
+        case 'week':
+          cutoff.setDate(now.getDate() - 7);
+          break;
+        case 'month':
+          cutoff.setMonth(now.getMonth() - 1);
+          break;
+      }
+      
+      filtered = filtered.filter(m => new Date(m.timestamp) >= cutoff);
+    }
+    
+    // User filter
+    if (searchFilters.userFilter !== 'all') {
+      filtered = filtered.filter(m => m.username === searchFilters.userFilter);
+    }
+    
+    // File type filter
+    if (searchFilters.fileTypeFilter !== 'all') {
+      switch (searchFilters.fileTypeFilter) {
+        case 'images':
+          filtered = filtered.filter(m => m.fileType && m.fileType.indexOf('image/') === 0);
+          break;
+        case 'files':
+          filtered = filtered.filter(m => m.fileUrl && (!m.fileType || m.fileType.indexOf('image/') !== 0));
+          break;
+        case 'text':
+          filtered = filtered.filter(m => m.text && !m.fileUrl);
+          break;
+      }
+    }
+    
+    return filtered;
+  })();
 
   // Scroll to bottom
   useEffect(() => {
@@ -504,7 +580,9 @@ export default function ChatBoxContent({ username, onLogout }) {
           body,
           icon: '/favicon.ico',
           tag: 'chatbox-message',
-          requireInteraction: isMentioned || hasKeyword
+          requireInteraction: isMentioned || hasKeyword,
+          badge: '/favicon.ico',
+          vibrate: isMentioned ? [200, 100, 200] : [100]
         });
         
         notification.onclick = () => {
@@ -516,6 +594,15 @@ export default function ChatBoxContent({ username, onLogout }) {
       }
     }
   };
+  
+  // Service Worker for push notifications when tab is closed
+  useEffect(() => {
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      navigator.serviceWorker.register('/sw.js').catch(err => 
+        console.log('SW registration failed:', err)
+      );
+    }
+  }, []);
 
   const handleFileUpload = async (file) => {
     if (!file) return;
@@ -602,6 +689,92 @@ export default function ChatBoxContent({ username, onLogout }) {
   const insertEmoji = (emoji) => {
     setInput(prev => prev + emoji);
     setShowEmojiPicker(false);
+  };
+  
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks = [];
+      
+      recorder.ondataavailable = (e) => chunks.push(e.data);
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'audio/webm' });
+        const audioUrl = URL.createObjectURL(blob);
+        sendVoiceMessage(blob);
+        stream.getTracks().forEach(track => track.stop());
+      };
+      
+      recorder.start();
+      setMediaRecorder(recorder);
+      setIsRecording(true);
+      setRecordingTime(0);
+      
+      recordingInterval.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
+    } catch (err) {
+      console.error('Recording failed:', err);
+      alert('Microphone access denied or not available');
+    }
+  };
+  
+  const stopRecording = () => {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      mediaRecorder.stop();
+      setIsRecording(false);
+      clearInterval(recordingInterval.current);
+    }
+  };
+  
+  const sendVoiceMessage = async (audioBlob) => {
+    const formData = new FormData();
+    formData.append('file', audioBlob, 'voice-message.webm');
+    
+    try {
+      const response = await fetch(`${backendHttp}/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) throw new Error('Upload failed');
+      
+      const result = await response.json();
+      
+      const timestamp = new Date().toLocaleString("en-US", { timeZoneName: "short" });
+      const voiceMessage = {
+        id: Date.now(),
+        username,
+        text: '',
+        timestamp,
+        fromUser: true,
+        reactions: {},
+        fileUrl: result.fileUrl,
+        fileType: 'audio/webm',
+        fileName: 'Voice Message',
+        status: "sending",
+        isVoiceMessage: true,
+      };
+      
+      setMessages((prev) => [...prev, voiceMessage]);
+      
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          username,
+          text: '',
+          timestamp,
+          clientId: voiceMessage.id,
+          fileUrl: result.fileUrl,
+          fileType: 'audio/webm',
+          fileName: 'Voice Message',
+          room: currentRoom,
+          isVoiceMessage: true,
+        }));
+      }
+    } catch (err) {
+      console.error('Voice message upload failed:', err);
+      alert('Voice message upload failed. Please try again.');
+    }
   };
 
   const commonEmojis = [
@@ -801,6 +974,21 @@ export default function ChatBoxContent({ username, onLogout }) {
           >
             🔍
           </button>
+          <button
+            onClick={() => setShowAdvancedSearch(!showAdvancedSearch)}
+            style={{
+              padding: isMobile ? "4px 6px" : "6px 10px",
+              borderRadius: 8,
+              border: "1px solid transparent",
+              backgroundColor: showAdvancedSearch ? (darkMode ? "#7c3aed" : "#8b5cf6") : (darkMode ? "#6b7280" : "#9ca3af"),
+              color: "#fff",
+              cursor: "pointer",
+              fontSize: "12px",
+            }}
+            title="Advanced search filters"
+          >
+            🎛️
+          </button>
           <select
             value={userStatus}
             onChange={(e) => setUserStatus(e.target.value)}
@@ -818,6 +1006,21 @@ export default function ChatBoxContent({ username, onLogout }) {
             <option value="away">🟡 Away</option>
             <option value="busy">🔴 Busy</option>
           </select>
+          <button
+            onClick={() => setShowProfile(!showProfile)}
+            style={{
+              padding: isMobile ? "4px 6px" : "6px 10px",
+              borderRadius: 8,
+              border: "1px solid transparent",
+              backgroundColor: showProfile ? (darkMode ? "#7c3aed" : "#8b5cf6") : (darkMode ? "#6b7280" : "#9ca3af"),
+              color: "#fff",
+              cursor: "pointer",
+              fontSize: "12px",
+            }}
+            title="Profile settings"
+          >
+            👤
+          </button>
           <button
             onClick={onLogout}
             style={{
@@ -859,11 +1062,97 @@ export default function ChatBoxContent({ username, onLogout }) {
               outline: "none",
             }}
           />
-          {searchQuery && (
+          {(searchQuery || searchFilters.dateRange !== 'all' || searchFilters.userFilter !== 'all' || searchFilters.fileTypeFilter !== 'all') && (
             <div style={{ marginTop: 8, fontSize: 12, opacity: 0.7 }}>
               Found {filteredMessages.length} message{filteredMessages.length !== 1 ? 's' : ''}
             </div>
           )}
+        </div>
+      )}
+      
+      {showAdvancedSearch && (
+        <div style={{
+          padding: "12px",
+          borderBottom: `1px solid ${darkMode ? "#1f2937" : "#e5e7eb"}`,
+          backgroundColor: darkMode ? "#111827" : "#ffffff",
+          position: "sticky",
+          top: showSearch ? (isMobile ? "128px" : "144px") : (isMobile ? "64px" : "72px"),
+          zIndex: 98,
+        }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: "8px" }}>
+            <select
+              value={searchFilters.dateRange}
+              onChange={(e) => setSearchFilters(prev => ({ ...prev, dateRange: e.target.value }))}
+              style={{
+                padding: "6px 8px",
+                borderRadius: 6,
+                border: `1px solid ${darkMode ? "#374151" : "#d1d5db"}`,
+                backgroundColor: darkMode ? "#1f2937" : "#fff",
+                color: darkMode ? "#e5e7eb" : "#111827",
+                fontSize: "12px",
+              }}
+            >
+              <option value="all">All Time</option>
+              <option value="today">Today</option>
+              <option value="week">This Week</option>
+              <option value="month">This Month</option>
+            </select>
+            
+            <select
+              value={searchFilters.userFilter}
+              onChange={(e) => setSearchFilters(prev => ({ ...prev, userFilter: e.target.value }))}
+              style={{
+                padding: "6px 8px",
+                borderRadius: 6,
+                border: `1px solid ${darkMode ? "#374151" : "#d1d5db"}`,
+                backgroundColor: darkMode ? "#1f2937" : "#fff",
+                color: darkMode ? "#e5e7eb" : "#111827",
+                fontSize: "12px",
+              }}
+            >
+              <option value="all">All Users</option>
+              {[...new Set(messages.map(m => m.username))].map(user => (
+                <option key={user} value={user}>{user}</option>
+              ))}
+            </select>
+            
+            <select
+              value={searchFilters.fileTypeFilter}
+              onChange={(e) => setSearchFilters(prev => ({ ...prev, fileTypeFilter: e.target.value }))}
+              style={{
+                padding: "6px 8px",
+                borderRadius: 6,
+                border: `1px solid ${darkMode ? "#374151" : "#d1d5db"}`,
+                backgroundColor: darkMode ? "#1f2937" : "#fff",
+                color: darkMode ? "#e5e7eb" : "#111827",
+                fontSize: "12px",
+              }}
+            >
+              <option value="all">All Content</option>
+              <option value="text">Text Only</option>
+              <option value="images">Images</option>
+              <option value="files">Files</option>
+            </select>
+          </div>
+          
+          <button
+            onClick={() => {
+              setSearchFilters({ dateRange: 'all', userFilter: 'all', fileTypeFilter: 'all' });
+              setSearchQuery('');
+            }}
+            style={{
+              marginTop: "8px",
+              padding: "4px 8px",
+              borderRadius: 4,
+              border: "none",
+              backgroundColor: darkMode ? "#374151" : "#e5e7eb",
+              color: darkMode ? "#fff" : "#111827",
+              cursor: "pointer",
+              fontSize: "11px",
+            }}
+          >
+            Clear Filters
+          </button>
         </div>
       )}
 
@@ -946,7 +1235,7 @@ export default function ChatBoxContent({ username, onLogout }) {
                     {m.text && <div style={textStyle}>{formatMessage(m.text, username)}</div>}
                     {m.fileUrl && (
                       <div style={{ marginTop: m.text ? 8 : 0 }}>
-                        {m.fileType && m.fileType.startsWith('image/') ? (
+                        {m.fileType && m.fileType.indexOf('image/') === 0 ? (
                           <img 
                             src={`${backendHttp}${m.fileUrl}`}
                             alt={m.fileName}
@@ -958,6 +1247,35 @@ export default function ChatBoxContent({ username, onLogout }) {
                             }}
                             onClick={() => window.open(`${backendHttp}${m.fileUrl}`, '_blank')}
                           />
+                        ) : m.isVoiceMessage || (m.fileType && m.fileType.indexOf('audio/') === 0) ? (
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '8px 12px',
+                            backgroundColor: darkMode ? '#374151' : '#f3f4f6',
+                            borderRadius: 8,
+                            fontSize: 12
+                          }}>
+                            <button
+                              onClick={() => {
+                                const audio = new Audio(`${backendHttp}${m.fileUrl}`);
+                                audio.play().catch(e => console.log('Audio play failed:', e));
+                              }}
+                              style={{
+                                padding: '4px 8px',
+                                borderRadius: 4,
+                                border: 'none',
+                                backgroundColor: darkMode ? '#0ea5a4' : '#2563eb',
+                                color: '#fff',
+                                cursor: 'pointer',
+                                fontSize: '10px'
+                              }}
+                            >
+                              ▶️ Play
+                            </button>
+                            <span>🎤 Voice Message</span>
+                          </div>
                         ) : (
                           <a 
                             href={`${backendHttp}${m.fileUrl}`}
@@ -1178,6 +1496,57 @@ export default function ChatBoxContent({ username, onLogout }) {
               B
             </button>
             <button
+              onClick={() => {
+                setInput(prev => prev + '*italic*');
+              }}
+              style={{
+                padding: "4px 6px",
+                borderRadius: 4,
+                border: "none",
+                backgroundColor: darkMode ? '#374151' : '#e5e7eb',
+                color: darkMode ? '#fff' : '#111827',
+                cursor: "pointer",
+                fontSize: "12px",
+                fontStyle: "italic",
+              }}
+              title="Insert italic text (*italic*)"
+            >
+              I
+            </button>
+            <button
+              onClick={() => {
+                setInput(prev => prev + '`code`');
+              }}
+              style={{
+                padding: "4px 6px",
+                borderRadius: 4,
+                border: "none",
+                backgroundColor: darkMode ? '#374151' : '#e5e7eb',
+                color: darkMode ? '#fff' : '#111827',
+                cursor: "pointer",
+                fontSize: "10px",
+                fontFamily: "monospace",
+              }}
+              title="Insert code (`code`)"
+            >
+              {"{}"}
+            </button>
+            <button
+              onClick={() => setShowMarkdownPreview(!showMarkdownPreview)}
+              style={{
+                padding: "4px 6px",
+                borderRadius: 4,
+                border: "none",
+                backgroundColor: showMarkdownPreview ? (darkMode ? '#7c3aed' : '#8b5cf6') : (darkMode ? '#374151' : '#e5e7eb'),
+                color: showMarkdownPreview ? '#fff' : (darkMode ? '#fff' : '#111827'),
+                cursor: "pointer",
+                fontSize: "12px",
+              }}
+              title="Toggle markdown preview"
+            >
+              👁️
+            </button>
+            <button
               onClick={() => setShowEmojiPicker(!showEmojiPicker)}
               style={{
                 padding: "4px 6px",
@@ -1193,17 +1562,39 @@ export default function ChatBoxContent({ username, onLogout }) {
               😀
             </button>
           </div>
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={onKeyDown}
-            placeholder="Type your message..."
-            style={{
-              ...inputStyle,
-              paddingLeft: "70px",
-            }}
-          />
+          {isRichTextMode ? (
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  sendMessage();
+                }
+              }}
+              placeholder="Type your message... (Shift+Enter for new line)"
+              style={{
+                ...inputStyle,
+                paddingLeft: "120px",
+                minHeight: "40px",
+                maxHeight: "120px",
+                resize: "vertical",
+                fontFamily: "inherit",
+              }}
+            />
+          ) : (
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={onKeyDown}
+              placeholder="Type your message..."
+              style={{
+                ...inputStyle,
+                paddingLeft: "120px",
+              }}
+            />
+          )}
           {showEmojiPicker && (
             <div style={{
               position: "absolute",
@@ -1250,6 +1641,29 @@ export default function ChatBoxContent({ username, onLogout }) {
               </div>
             </div>
           )}
+          
+          {showMarkdownPreview && input.trim() && (
+            <div style={{
+              position: "absolute",
+              bottom: "100%",
+              left: 0,
+              right: 0,
+              backgroundColor: darkMode ? "#111827" : "#f9fafb",
+              border: `1px solid ${darkMode ? "#374151" : "#d1d5db"}`,
+              borderRadius: 8,
+              padding: "12px",
+              marginBottom: 8,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+              zIndex: 999,
+              maxHeight: "150px",
+              overflowY: "auto",
+            }}>
+              <div style={{ fontSize: "11px", opacity: 0.7, marginBottom: "6px" }}>Preview:</div>
+              <div style={{ fontSize: "14px", lineHeight: "1.4" }}>
+                {formatMessage(input, username)}
+              </div>
+            </div>
+          )}
         </div>
         <input
           type="file"
@@ -1274,6 +1688,42 @@ export default function ChatBoxContent({ username, onLogout }) {
           title={`Keyword alerts: ${keywords.join(', ')}`}
         >
           🔔
+        </button>
+        <button
+          onClick={() => setIsRichTextMode(!isRichTextMode)}
+          style={{
+            ...btnStyle,
+            backgroundColor: isRichTextMode ? (darkMode ? '#7c3aed' : '#8b5cf6') : (darkMode ? '#6b7280' : '#9ca3af'),
+            padding: isMobile ? "8px 10px" : "10px 12px",
+            fontSize: isMobile ? '12px' : '14px',
+          }}
+          title={isRichTextMode ? 'Switch to single line' : 'Switch to multi-line editor'}
+        >
+          {isRichTextMode ? '📝' : '📄'}
+        </button>
+        <button
+          onClick={isRecording ? stopRecording : startRecording}
+          style={{
+            ...btnStyle,
+            backgroundColor: isRecording ? '#ef4444' : (darkMode ? '#8b5cf6' : '#7c3aed'),
+            position: 'relative',
+          }}
+          title={isRecording ? `Recording... ${recordingTime}s` : 'Record voice message'}
+        >
+          {isRecording ? '⏹️' : '🎤'}
+          {isRecording && (
+            <div style={{
+              position: 'absolute',
+              top: '-20px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              fontSize: '10px',
+              color: '#ef4444',
+              fontWeight: 'bold'
+            }}>
+              {recordingTime}s
+            </div>
+          )}
         </button>
         <button 
           onClick={() => fileInputRef.current?.click()}
@@ -1470,7 +1920,7 @@ export default function ChatBoxContent({ username, onLogout }) {
               </div>
             </div>
           );
-        })
+        })}
           </div>
         </>
       )}
@@ -1511,7 +1961,7 @@ export default function ChatBoxContent({ username, onLogout }) {
               type="text"
               placeholder="Room name (e.g., my-room)"
               value={newRoomName}
-              onChange={(e) => setNewRoomName(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+              onChange={(e) => setNewRoomName(e.target.value.toLowerCase().replace(/[^a-z0-9\-]/g, ''))}
               style={{
                 width: "100%",
                 padding: "8px 12px",
@@ -1646,6 +2096,166 @@ export default function ChatBoxContent({ username, onLogout }) {
                 }}
               >
                 Create Room
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+      
+      {/* Profile Modal */}
+      {showProfile && (
+        <>
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              zIndex: 1001,
+            }}
+            onClick={() => setShowProfile(false)}
+          />
+          <div style={{
+            position: "fixed",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            backgroundColor: darkMode ? "#1f2937" : "#ffffff",
+            padding: "24px",
+            borderRadius: "12px",
+            boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+            zIndex: 1002,
+            width: "90%",
+            maxWidth: "400px",
+          }}>
+            <h3 style={{ margin: "0 0 16px 0", fontSize: "18px", fontWeight: "600" }}>
+              Profile Settings
+            </h3>
+            
+            <div style={{ textAlign: "center", marginBottom: "16px" }}>
+              <div style={{
+                width: 80,
+                height: 80,
+                borderRadius: "50%",
+                backgroundColor: userProfile.avatar ? "transparent" : getAvatar(username).color,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 32,
+                fontWeight: "bold",
+                color: "white",
+                margin: "0 auto 12px",
+                backgroundImage: userProfile.avatar ? `url(${userProfile.avatar})` : "none",
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+                border: `3px solid ${darkMode ? "#374151" : "#e5e7eb"}`,
+              }}>
+                {!userProfile.avatar && getAvatar(username).initial}
+              </div>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  const file = e.target.files[0];
+                  if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                      setUserProfile(prev => ({ ...prev, avatar: e.target.result }));
+                    };
+                    reader.readAsDataURL(file);
+                  }
+                }}
+                style={{ display: "none" }}
+                id="avatar-upload"
+              />
+              <label
+                htmlFor="avatar-upload"
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: 6,
+                  border: "none",
+                  backgroundColor: darkMode ? "#374151" : "#e5e7eb",
+                  color: darkMode ? "#fff" : "#111827",
+                  cursor: "pointer",
+                  fontSize: "12px",
+                  display: "inline-block",
+                }}
+              >
+                Change Avatar
+              </label>
+            </div>
+            
+            <input
+              type="text"
+              placeholder="Custom status message"
+              value={userProfile.customStatus}
+              onChange={(e) => setUserProfile(prev => ({ ...prev, customStatus: e.target.value }))}
+              style={{
+                width: "100%",
+                padding: "8px 12px",
+                marginBottom: "12px",
+                borderRadius: 6,
+                border: `1px solid ${darkMode ? "#374151" : "#d1d5db"}`,
+                backgroundColor: darkMode ? "#111827" : "#ffffff",
+                color: darkMode ? "#e5e7eb" : "#111827",
+                outline: "none",
+                boxSizing: "border-box",
+              }}
+            />
+            
+            <textarea
+              placeholder="Bio (optional)"
+              value={userProfile.bio}
+              onChange={(e) => setUserProfile(prev => ({ ...prev, bio: e.target.value }))}
+              style={{
+                width: "100%",
+                padding: "8px 12px",
+                marginBottom: "16px",
+                borderRadius: 6,
+                border: `1px solid ${darkMode ? "#374151" : "#d1d5db"}`,
+                backgroundColor: darkMode ? "#111827" : "#ffffff",
+                color: darkMode ? "#e5e7eb" : "#111827",
+                outline: "none",
+                resize: "vertical",
+                minHeight: "60px",
+                boxSizing: "border-box",
+              }}
+            />
+            
+            <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setShowProfile(false)}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 6,
+                  border: `1px solid ${darkMode ? "#374151" : "#d1d5db"}`,
+                  backgroundColor: "transparent",
+                  color: darkMode ? "#e5e7eb" : "#111827",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  // Save profile to localStorage
+                  localStorage.setItem(`chatbox-profile-${username}`, JSON.stringify(userProfile));
+                  setShowProfile(false);
+                }}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 6,
+                  border: "none",
+                  backgroundColor: darkMode ? "#0ea5a4" : "#2563eb",
+                  color: "#ffffff",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                }}
+              >
+                Save Profile
               </button>
             </div>
           </div>
