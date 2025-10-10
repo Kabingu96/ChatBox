@@ -25,14 +25,14 @@ const getAvatar = (username) => {
   return { color, initial };
 };
 
-// Format message text with markdown-style formatting and @mentions
-const formatMessage = (text, currentUsername) => {
+// Format message text with markdown-style formatting, @mentions, and search highlighting
+const formatMessage = (text, currentUsername, searchTerm = '') => {
   if (!text) return null;
   
   const parts = [];
   let currentIndex = 0;
   
-  // Regex patterns for formatting (including @mentions)
+  // Regex patterns for formatting (including @mentions and search highlighting)
   const patterns = [
     { regex: /\*\*(.*?)\*\*/g, tag: 'strong' },
     { regex: /\*(.*?)\*/g, tag: 'em' },
@@ -41,6 +41,12 @@ const formatMessage = (text, currentUsername) => {
     { regex: /`(.*?)`/g, tag: 'code' },
     { regex: /@(\w+)/g, tag: 'mention' },
   ];
+  
+  // Add search highlighting pattern if search term exists
+  if (searchTerm && searchTerm.trim()) {
+    const escapedTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    patterns.push({ regex: new RegExp(`(${escapedTerm})`, 'gi'), tag: 'highlight' });
+  }
   
   const matches = [];
   patterns.forEach(pattern => {
@@ -112,6 +118,17 @@ const formatMessage = (text, currentUsername) => {
           fontWeight: 'bold'
         } 
       }, `@${match.content}`));
+    } else if (match.tag === 'highlight') {
+      elements.push(React.createElement('mark', { 
+        key, 
+        style: { 
+          backgroundColor: '#fbbf24',
+          color: '#000',
+          padding: '1px 2px',
+          borderRadius: 2,
+          fontWeight: 'bold'
+        } 
+      }, match.content));
     }
     
     lastIndex = match.end;
@@ -1232,7 +1249,7 @@ export default function ChatBoxContent({ username, onLogout }) {
                   </>
                 ) : (
                   <>
-                    {m.text && <div style={textStyle}>{formatMessage(m.text, username)}</div>}
+                    {m.text && <div style={textStyle}>{formatMessage(m.text, username, searchQuery)}</div>}
                     {m.fileUrl && (
                       <div style={{ marginTop: m.text ? 8 : 0 }}>
                         {m.fileType && m.fileType.indexOf('image/') === 0 ? (
