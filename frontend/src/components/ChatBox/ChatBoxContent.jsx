@@ -150,6 +150,7 @@ export default function ChatBoxContent({ username, onLogout }) {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [keywords, setKeywords] = useState(['urgent', 'help', 'meeting']);
   const [connectionStatus, setConnectionStatus] = useState('connecting');
+  const [userStatus, setUserStatus] = useState('online');
   const endRef = useRef(null);
   const audioRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -800,6 +801,23 @@ export default function ChatBoxContent({ username, onLogout }) {
           >
             🔍
           </button>
+          <select
+            value={userStatus}
+            onChange={(e) => setUserStatus(e.target.value)}
+            style={{
+              padding: isMobile ? "4px 6px" : "6px 10px",
+              borderRadius: 8,
+              border: "1px solid transparent",
+              backgroundColor: darkMode ? "#374151" : "#e5e7eb",
+              color: darkMode ? "#fff" : "#111827",
+              cursor: "pointer",
+              fontSize: isMobile ? "10px" : "12px",
+            }}
+          >
+            <option value="online">🟢 Online</option>
+            <option value="away">🟡 Away</option>
+            <option value="busy">🔴 Busy</option>
+          </select>
           <button
             onClick={onLogout}
             style={{
@@ -1399,47 +1417,60 @@ export default function ChatBoxContent({ username, onLogout }) {
         <h3 style={{ margin: "16px 0 12px 0", fontSize: "14px", fontWeight: "600" }}>
           Online Users ({onlineUsers.length})
         </h3>
-        {onlineUsers.map((user, index) => (
-          <div
-            key={index}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              padding: "6px 0",
-              fontSize: "13px",
-            }}
-          >
-            <div style={{ position: "relative", marginRight: "8px" }}>
-              <div style={{
-                width: 24,
-                height: 24,
-                borderRadius: "50%",
-                backgroundColor: getAvatar(user).color,
+        {onlineUsers.map((user, index) => {
+          const userName = typeof user === 'string' ? user : user.username;
+          const userStatus = typeof user === 'string' ? 'online' : user.status;
+          const statusColor = userStatus === 'online' ? '#10b981' : userStatus === 'away' ? '#f59e0b' : '#ef4444';
+          
+          return (
+            <div
+              key={index}
+              style={{
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "center",
-                fontSize: 11,
-                fontWeight: "bold",
-                color: "white",
-              }}>
-                {getAvatar(user).initial}
+                padding: "6px 0",
+                fontSize: "13px",
+              }}
+            >
+              <div style={{ position: "relative", marginRight: "8px" }}>
+                <div style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: "50%",
+                  backgroundColor: getAvatar(userName).color,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 11,
+                  fontWeight: "bold",
+                  color: "white",
+                }}>
+                  {getAvatar(userName).initial}
+                </div>
+                <div style={{
+                  position: "absolute",
+                  bottom: -1,
+                  right: -1,
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  backgroundColor: statusColor,
+                  border: `2px solid ${darkMode ? "#0b1220" : "#ffffff"}`,
+                }} />
               </div>
-              <div style={{
-                position: "absolute",
-                bottom: -1,
-                right: -1,
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                backgroundColor: "#10b981",
-                border: `2px solid ${darkMode ? "#0b1220" : "#ffffff"}`,
-              }} />
+              <div style={{ flex: 1 }}>
+                <span style={{ fontWeight: userName === username ? "600" : "400" }}>
+                  {userName === username ? "You" : userName}
+                </span>
+                {userStatus !== 'online' && (
+                  <div style={{ fontSize: 10, opacity: 0.7, marginTop: 2 }}>
+                    {userStatus}
+                  </div>
+                )}
+              </div>
             </div>
-            <span style={{ fontWeight: user === username ? "600" : "400" }}>
-              {user === username ? "You" : user}
-            </span>
-          </div>
-        ))}
+          );
+        })
           </div>
         </>
       )}

@@ -78,6 +78,10 @@ var (
     messagesMu   sync.RWMutex
     messagesList = []Message{}
     nextMessageID int64 = 1
+
+    // Rate limiting
+    rateLimitMu sync.RWMutex
+    rateLimitMap = make(map[string][]time.Time)
 )
 
 // DB integration (optional): enabled when DATABASE_URL is set
@@ -108,6 +112,8 @@ type Client struct {
     hub      *Hub
     username string
     room     string
+    status   string // online, away, busy
+    lastSeen time.Time
 }
 
 type Hub struct {
@@ -148,15 +154,19 @@ func newHub() *Hub {
 func (h *Hub) broadcastUserList() {
     // Broadcast user list per room
     for room, roomClients := range h.rooms {
-        users := make([]string, 0, len(roomClients))
+        users := make([]map[string]interface{}, 0, len(roomClients))
         for client := range roomClients {
-            users = append(users, client.username)
+            users = append(users, map[string]interface{}{
+                "username": client.username,
+                "status":   client.status,
+                "lastSeen": client.lastSeen.Unix(),
+            })
         }
         
         payload := struct {
-            Type  string   `json:"type"`
-            Users []string `json:"users"`
-            Room  string   `json:"room"`
+            Type  string                   `json:"type"`
+            Users []map[string]interface{} `json:"users"`
+            Room  string                   `json:"room"`
         }{Type: "users", Users: users, Room: room}
         
         if b, err := json.Marshal(payload); err == nil {
@@ -433,6 +443,25 @@ func (c *Client) readPump() {
             continue
         }
 
+        // Rate limiting: max 10 messages per minute
+        rateLimitMu.Lock()
+        now := time.Now()
+        userTimes := rateLimitMap[c.username]
+        // Remove times older than 1 minute
+        var recentTimes []time.Time
+        for _, t := range userTimes {
+            if now.Sub(t) < time.Minute {
+                recentTimes = append(recentTimes, t)
+            }
+        }
+        if len(recentTimes) >= 10 {
+            rateLimitMu.Unlock()
+            continue // Skip message if rate limited
+        }
+        recentTimes = append(recentTimes, now)
+        rateLimitMap[c.username] = recentTimes
+        rateLimitMu.Unlock()
+
         ts := getTimestamp(inc.Timezone)
         out := Message{
             Username:  c.username,
@@ -500,6 +529,8 @@ func serveWs(h *Hub, username, room string, w http.ResponseWriter, r *http.Reque
         hub:      h,
         username: username,
         room:     room,
+        status:   "online",
+        lastSeen: time.Now(),
     }
     h.register <- client
 
