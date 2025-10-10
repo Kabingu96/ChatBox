@@ -1113,9 +1113,6 @@ export default function ChatBoxContent({ username, onLogout }) {
           padding: "12px",
           borderBottom: `1px solid ${darkMode ? "#1f2937" : "#e5e7eb"}`,
           backgroundColor: darkMode ? "#0f1720" : "#f9fafb",
-          position: "sticky",
-          top: isMobile ? "64px" : "72px",
-          zIndex: 99,
         }}>
           <input
             type="text"
@@ -1145,9 +1142,6 @@ export default function ChatBoxContent({ username, onLogout }) {
           padding: "12px",
           borderBottom: `1px solid ${darkMode ? "#1f2937" : "#e5e7eb"}`,
           backgroundColor: darkMode ? "#111827" : "#ffffff",
-          position: "sticky",
-          top: showSearch ? (isMobile ? "128px" : "144px") : (isMobile ? "64px" : "72px"),
-          zIndex: 98,
         }}>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: "8px" }}>
             <select
