@@ -1680,10 +1680,18 @@ export default function ChatBoxContent({ username, onLogout }) {
             }
           }}
           style={{
-            ...btnStyle,
+            padding: isMobile ? "8px" : "10px",
+            borderRadius: "50%",
+            border: "none",
+            cursor: "pointer",
             backgroundColor: darkMode ? '#6b7280' : '#9ca3af',
-            padding: isMobile ? "8px 10px" : "10px 12px",
+            color: "#fff",
             fontSize: isMobile ? '12px' : '14px',
+            width: isMobile ? '36px' : '40px',
+            height: isMobile ? '36px' : '40px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
           }}
           title={`Keyword alerts: ${keywords.join(', ')}`}
         >
@@ -1692,10 +1700,18 @@ export default function ChatBoxContent({ username, onLogout }) {
         <button
           onClick={() => setIsRichTextMode(!isRichTextMode)}
           style={{
-            ...btnStyle,
+            padding: isMobile ? "8px" : "10px",
+            borderRadius: "50%",
+            border: "none",
+            cursor: "pointer",
             backgroundColor: isRichTextMode ? (darkMode ? '#7c3aed' : '#8b5cf6') : (darkMode ? '#6b7280' : '#9ca3af'),
-            padding: isMobile ? "8px 10px" : "10px 12px",
+            color: "#fff",
             fontSize: isMobile ? '12px' : '14px',
+            width: isMobile ? '36px' : '40px',
+            height: isMobile ? '36px' : '40px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
           }}
           title={isRichTextMode ? 'Switch to single line' : 'Switch to multi-line editor'}
         >
@@ -1704,9 +1720,19 @@ export default function ChatBoxContent({ username, onLogout }) {
         <button
           onClick={isRecording ? stopRecording : startRecording}
           style={{
-            ...btnStyle,
+            padding: isMobile ? "8px" : "10px",
+            borderRadius: "50%",
+            border: "none",
+            cursor: "pointer",
             backgroundColor: isRecording ? '#ef4444' : (darkMode ? '#8b5cf6' : '#7c3aed'),
+            color: "#fff",
             position: 'relative',
+            fontSize: isMobile ? '12px' : '14px',
+            width: isMobile ? '36px' : '40px',
+            height: isMobile ? '36px' : '40px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
           }}
           title={isRecording ? `Recording... ${recordingTime}s` : 'Record voice message'}
         >
@@ -1729,13 +1755,35 @@ export default function ChatBoxContent({ username, onLogout }) {
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
           style={{
-            ...btnStyle,
+            padding: isMobile ? "8px" : "10px",
+            borderRadius: "50%",
+            border: "none",
+            cursor: "pointer",
             backgroundColor: uploading ? (darkMode ? '#6b7280' : '#9ca3af') : (darkMode ? '#059669' : '#10b981'),
+            color: "#fff",
+            fontSize: isMobile ? '12px' : '14px',
+            width: isMobile ? '36px' : '40px',
+            height: isMobile ? '36px' : '40px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
           }}
         >
           {uploading ? '📤' : '📎'}
         </button>
-        <button onClick={sendMessage} style={btnStyle}>
+        <button 
+          onClick={sendMessage} 
+          style={{
+            padding: isMobile ? "8px 12px" : "10px 16px",
+            borderRadius: "999px",
+            border: "none",
+            cursor: "pointer",
+            backgroundColor: darkMode ? "#0ea5a4" : "#2563eb",
+            color: "#fff",
+            fontSize: isMobile ? '12px' : '14px',
+            fontWeight: '600'
+          }}
+        >
           Send
         </button>
       </div>
