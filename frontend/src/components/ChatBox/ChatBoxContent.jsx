@@ -185,6 +185,7 @@ export default function ChatBoxContent({ username, onLogout }) {
   const [isRecording, setIsRecording] = useState(false);
   const [mediaRecorder, setMediaRecorder] = useState(null);
   const [recordingTime, setRecordingTime] = useState(0);
+  const [expandedReactions, setExpandedReactions] = useState({});
   const recordingInterval = useRef(null);
   const endRef = useRef(null);
   const audioRef = useRef(null);
@@ -1343,25 +1344,101 @@ export default function ChatBoxContent({ username, onLogout }) {
 
                 {/* Reactions */}
                 {m.reactions && Object.keys(m.reactions).length > 0 && (
-                  <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 4 }}>
-                    {Object.entries(m.reactions).map(([emoji, users]) => (
-                      <button
-                        key={emoji}
-                        onClick={() => addReaction(m.id, emoji)}
-                        style={{
-                          padding: "2px 6px",
-                          borderRadius: 12,
-                          border: "1px solid",
-                          borderColor: users.includes(username) ? (darkMode ? "#0ea5a4" : "#2563eb") : (darkMode ? "#374151" : "#d1d5db"),
-                          backgroundColor: users.includes(username) ? (darkMode ? "#0f2a2a" : "#dbeafe") : "transparent",
-                          color: darkMode ? "#e5e7eb" : "#111827",
-                          fontSize: 11,
-                          cursor: "pointer",
-                        }}
-                      >
-                        {emoji} {users.length}
-                      </button>
-                    ))}
+                  <div style={{ marginTop: 6 }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                      {Object.entries(m.reactions).map(([emoji, users]) => (
+                        <button
+                          key={emoji}
+                          onClick={() => addReaction(m.id, emoji)}
+                          onDoubleClick={() => setExpandedReactions(prev => ({
+                            ...prev,
+                            [`${m.id}-${emoji}`]: !prev[`${m.id}-${emoji}`]
+                          }))}
+                          style={{
+                            padding: "2px 6px",
+                            borderRadius: 12,
+                            border: "1px solid",
+                            borderColor: users.includes(username) ? (darkMode ? "#0ea5a4" : "#2563eb") : (darkMode ? "#374151" : "#d1d5db"),
+                            backgroundColor: users.includes(username) ? (darkMode ? "#0f2a2a" : "#dbeafe") : "transparent",
+                            color: darkMode ? "#e5e7eb" : "#111827",
+                            fontSize: 11,
+                            cursor: "pointer",
+                          }}
+                          title="Click to react, double-click to see who reacted"
+                        >
+                          {emoji} {users.length}
+                        </button>
+                      ))}
+                    </div>
+                    {/* Expanded reactions panel */}
+                    {Object.entries(m.reactions).map(([emoji, users]) => 
+                      expandedReactions[`${m.id}-${emoji}`] && (
+                        <div
+                          key={`expanded-${emoji}`}
+                          style={{
+                            marginTop: 6,
+                            padding: "8px",
+                            backgroundColor: darkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)",
+                            borderRadius: 6,
+                            fontSize: 11,
+                          }}
+                        >
+                          <div style={{ fontWeight: "bold", marginBottom: 4 }}>
+                            {emoji} Reactions ({users.length})
+                          </div>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                            {users.map(user => (
+                              <div
+                                key={user}
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 4,
+                                  padding: "2px 6px",
+                                  backgroundColor: darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)",
+                                  borderRadius: 8,
+                                }}
+                              >
+                                <div style={{
+                                  width: 12,
+                                  height: 12,
+                                  borderRadius: "50%",
+                                  backgroundColor: getAvatar(user).color,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  fontSize: 7,
+                                  fontWeight: "bold",
+                                  color: "white",
+                                }}>
+                                  {getAvatar(user).initial}
+                                </div>
+                                <span>{user === username ? "You" : user}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <button
+                            onClick={() => setExpandedReactions(prev => ({
+                              ...prev,
+                              [`${m.id}-${emoji}`]: false
+                            }))}
+                            style={{
+                              marginTop: 4,
+                              padding: "2px 6px",
+                              borderRadius: 4,
+                              border: "none",
+                              backgroundColor: "transparent",
+                              color: darkMode ? "#9ca3af" : "#6b7280",
+                              fontSize: 9,
+                              cursor: "pointer",
+                              opacity: 0.7,
+                            }}
+                          >
+                            ✕ Close
+                          </button>
+                        </div>
+                      )
+                    )}
                   </div>
                 )}
 
@@ -1382,6 +1459,7 @@ export default function ChatBoxContent({ username, onLogout }) {
                       }}
                       onMouseEnter={(e) => e.target.style.opacity = 1}
                       onMouseLeave={(e) => e.target.style.opacity = 0.6}
+                      title={`React with ${emoji}`}
                     >
                       {emoji}
                     </button>
