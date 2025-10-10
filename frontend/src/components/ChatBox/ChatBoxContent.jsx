@@ -881,6 +881,19 @@ export default function ChatBoxContent({ username, onLogout }) {
     color: "#fff",
   };
 
+  // Add CSS animation for typing indicators
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes pulse {
+        0%, 100% { opacity: 0.4; transform: scale(1); }
+        50% { opacity: 1; transform: scale(1.1); }
+      }
+    `;
+    document.head.appendChild(style);
+    return () => document.head.removeChild(style);
+  }, []);
+
   return (
     <div style={containerStyle}>
       <div style={chatContainerStyle}>
@@ -1442,14 +1455,42 @@ export default function ChatBoxContent({ username, onLogout }) {
         {typingUsers.length > 0 && (
           <div style={{ 
             padding: "8px 16px", 
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
             fontSize: "12px", 
             opacity: 0.7,
             fontStyle: "italic"
           }}>
-            {typingUsers.length === 1 
-              ? `${typingUsers[0]} is typing...` 
-              : `${typingUsers.slice(0, 2).join(", ")}${typingUsers.length > 2 ? ` and ${typingUsers.length - 2} others` : ""} are typing...`
-            }
+            <div style={{ display: "flex", gap: "4px" }}>
+              {typingUsers.slice(0, 3).map((user, index) => (
+                <div
+                  key={user}
+                  style={{
+                    width: 16,
+                    height: 16,
+                    borderRadius: "50%",
+                    backgroundColor: getAvatar(user).color,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 8,
+                    fontWeight: "bold",
+                    color: "white",
+                    animation: `pulse 1.5s ease-in-out ${index * 0.2}s infinite`,
+                  }}
+                  title={user}
+                >
+                  {getAvatar(user).initial}
+                </div>
+              ))}
+            </div>
+            <span>
+              {typingUsers.length === 1 
+                ? `${typingUsers[0]} is typing...` 
+                : `${typingUsers.slice(0, 2).join(", ")}${typingUsers.length > 2 ? ` and ${typingUsers.length - 2} others` : ""} are typing...`
+              }
+            </span>
           </div>
         )}
         <div ref={endRef} />
