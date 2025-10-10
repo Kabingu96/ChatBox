@@ -839,8 +839,8 @@ export default function ChatBoxContent({ username, onLogout }) {
   };
   const inputBarStyle = {
     display: "flex",
-    gap: isMobile ? "4px" : "6px",
-    padding: isMobile ? "8px" : "12px",
+    gap: isMobile ? "2px" : "4px",
+    padding: isMobile ? "6px" : "10px",
     borderTop: `1px solid ${darkMode ? "#1f2937" : "#e5e7eb"}`,
     alignItems: "center",
     backgroundColor: darkMode ? "#071018" : "#fafafa",
@@ -1575,7 +1575,7 @@ export default function ChatBoxContent({ username, onLogout }) {
               placeholder="Type your message... (Shift+Enter for new line)"
               style={{
                 ...inputStyle,
-                paddingLeft: "120px",
+                paddingLeft: isMobile ? "90px" : "100px",
                 minHeight: "40px",
                 maxHeight: "120px",
                 resize: "vertical",
@@ -1591,7 +1591,7 @@ export default function ChatBoxContent({ username, onLogout }) {
               placeholder="Type your message..."
               style={{
                 ...inputStyle,
-                paddingLeft: "120px",
+                paddingLeft: isMobile ? "90px" : "100px",
               }}
             />
           )}
@@ -1686,9 +1686,9 @@ export default function ChatBoxContent({ username, onLogout }) {
             cursor: "pointer",
             backgroundColor: darkMode ? '#6b7280' : '#9ca3af',
             color: "#fff",
-            fontSize: isMobile ? '12px' : '14px',
-            width: isMobile ? '32px' : '36px',
-            height: isMobile ? '32px' : '36px',
+            fontSize: isMobile ? '10px' : '12px',
+            width: isMobile ? '24px' : '28px',
+            height: isMobile ? '24px' : '28px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -1707,9 +1707,9 @@ export default function ChatBoxContent({ username, onLogout }) {
             cursor: "pointer",
             backgroundColor: isRichTextMode ? (darkMode ? '#7c3aed' : '#8b5cf6') : (darkMode ? '#6b7280' : '#9ca3af'),
             color: "#fff",
-            fontSize: isMobile ? '12px' : '14px',
-            width: isMobile ? '32px' : '36px',
-            height: isMobile ? '32px' : '36px',
+            fontSize: isMobile ? '10px' : '12px',
+            width: isMobile ? '24px' : '28px',
+            height: isMobile ? '24px' : '28px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -1729,9 +1729,9 @@ export default function ChatBoxContent({ username, onLogout }) {
             backgroundColor: isRecording ? '#ef4444' : (darkMode ? '#8b5cf6' : '#7c3aed'),
             color: "#fff",
             position: 'relative',
-            fontSize: isMobile ? '12px' : '14px',
-            width: isMobile ? '32px' : '36px',
-            height: isMobile ? '32px' : '36px',
+            fontSize: isMobile ? '10px' : '12px',
+            width: isMobile ? '24px' : '28px',
+            height: isMobile ? '24px' : '28px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -1743,10 +1743,10 @@ export default function ChatBoxContent({ username, onLogout }) {
           {isRecording && (
             <div style={{
               position: 'absolute',
-              top: '-20px',
+              top: '-18px',
               left: '50%',
               transform: 'translateX(-50%)',
-              fontSize: '10px',
+              fontSize: '9px',
               color: '#ef4444',
               fontWeight: 'bold'
             }}>
@@ -1764,9 +1764,9 @@ export default function ChatBoxContent({ username, onLogout }) {
             cursor: "pointer",
             backgroundColor: uploading ? (darkMode ? '#6b7280' : '#9ca3af') : (darkMode ? '#059669' : '#10b981'),
             color: "#fff",
-            fontSize: isMobile ? '12px' : '14px',
-            width: isMobile ? '32px' : '36px',
-            height: isMobile ? '32px' : '36px',
+            fontSize: isMobile ? '10px' : '12px',
+            width: isMobile ? '24px' : '28px',
+            height: isMobile ? '24px' : '28px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -1778,16 +1778,16 @@ export default function ChatBoxContent({ username, onLogout }) {
         <button 
           onClick={sendMessage} 
           style={{
-            padding: isMobile ? "8px 12px" : "10px 16px",
+            padding: isMobile ? "6px 10px" : "8px 12px",
             borderRadius: "999px",
             border: "none",
             cursor: "pointer",
             backgroundColor: darkMode ? "#0ea5a4" : "#2563eb",
             color: "#fff",
-            fontSize: isMobile ? '12px' : '14px',
+            fontSize: isMobile ? '11px' : '13px',
             fontWeight: '600',
             flexShrink: 0,
-            minWidth: isMobile ? '60px' : '70px'
+            minWidth: isMobile ? '50px' : '60px'
           }}
         >
           Send
