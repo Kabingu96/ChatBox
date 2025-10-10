@@ -149,6 +149,7 @@ export default function ChatBoxContent({ username, onLogout }) {
   const [replyingTo, setReplyingTo] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [keywords, setKeywords] = useState(['urgent', 'help', 'meeting']);
+  const [connectionStatus, setConnectionStatus] = useState('connecting');
   const endRef = useRef(null);
   const audioRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -217,7 +218,10 @@ export default function ChatBoxContent({ username, onLogout }) {
   useEffect(() => {
     const socket = new WebSocket(`${backendWs}/ws?username=${username}&room=${currentRoom}`);
 
-    socket.onopen = () => console.log("✅ WebSocket connected to room:", currentRoom);
+    socket.onopen = () => {
+      console.log("✅ WebSocket connected to room:", currentRoom);
+      setConnectionStatus('connected');
+    };
 
     socket.onmessage = (event) => {
       try {
@@ -309,7 +313,17 @@ export default function ChatBoxContent({ username, onLogout }) {
       }
     };
 
-    socket.onclose = () => console.log("❌ WebSocket closed");
+    socket.onclose = () => {
+      console.log("❌ WebSocket closed, attempting reconnect...");
+      setConnectionStatus('reconnecting');
+      setTimeout(() => {
+        if (!ws || ws.readyState === WebSocket.CLOSED) {
+          console.log("🔄 Reconnecting WebSocket...");
+          const newSocket = new WebSocket(`${backendWs}/ws?username=${username}&room=${currentRoom}`);
+          setWs(newSocket);
+        }
+      }, 3000);
+    };
     socket.onerror = (err) => console.error("WebSocket error:", err);
 
     setWs(socket);
@@ -595,7 +609,8 @@ export default function ChatBoxContent({ username, onLogout }) {
     '👍', '👎', '👏', '🙌', '👋', '🤝', '💪', '🙏',
     '❤️', '💕', '💖', '💯', '🔥', '⭐', '✨', '🎉',
     '🎊', '🎈', '🎁', '🍕', '🍔', '🍟', '☕', '🍺',
-    '🌟', '🌈', '🌸', '🌺', '🎵', '🎶', '⚡', '💎'
+    '🌟', '🌈', '🌸', '🌺', '🎵', '🎶', '⚡', '💎',
+    '🚀', '🎆', '🌎', '🌙', '☀️', '⛅', '☔', '⛄'
   ];
 
 
@@ -617,7 +632,7 @@ export default function ChatBoxContent({ username, onLogout }) {
     minWidth: 0,
   };
   const sidebarStyle = {
-    width: "280px",
+    width: isMobile ? "100vw" : "280px",
     backgroundColor: darkMode ? "#0b1220" : "#ffffff",
     borderRight: `1px solid ${darkMode ? "#1f2937" : "#e5e7eb"}`,
     padding: "16px",
@@ -711,7 +726,16 @@ export default function ChatBoxContent({ username, onLogout }) {
             </div>
             <div>
               <strong style={{ fontSize: isMobile ? 16 : 18 }}>ChatBox</strong>
-              <div style={{ fontSize: isMobile ? 11 : 12, opacity: 0.8 }}>#{currentRoom} • {username}</div>
+              <div style={{ fontSize: isMobile ? 11 : 12, opacity: 0.8 }}>
+                #{currentRoom} • {username}
+                <span style={{ 
+                  marginLeft: 8, 
+                  color: connectionStatus === 'connected' ? '#10b981' : connectionStatus === 'reconnecting' ? '#f59e0b' : '#ef4444',
+                  fontSize: 10
+                }}>
+                  {connectionStatus === 'connected' ? '• Online' : connectionStatus === 'reconnecting' ? '• Reconnecting...' : '• Offline'}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -842,7 +866,7 @@ export default function ChatBoxContent({ username, onLogout }) {
             color: darkMode ? "#fff" : "#111827",
             padding: "8px 12px",
             borderRadius: 12,
-            maxWidth: isMobile ? "85%" : "72%",
+            maxWidth: isMobile ? "95%" : "72%",
             boxShadow: isMine ? "0 3px 8px rgba(2,6,23,0.2)" : "0 1px 3px rgba(2,6,23,0.06)",
           };
           const nameStyle = { fontSize: 12, fontWeight: 700, marginBottom: 4, opacity: 0.9 };
@@ -946,6 +970,7 @@ export default function ChatBoxContent({ username, onLogout }) {
                       {m.status === "sending" && "⏳"}
                       {m.status === "sent" && "✓"}
                       {m.status === "delivered" && "✓✓"}
+                      {m.status === "read" && "👁️"}
                     </div>
                   )}
                 </div>
@@ -976,7 +1001,7 @@ export default function ChatBoxContent({ username, onLogout }) {
 
                 {/* Quick reaction buttons */}
                 <div style={{ marginTop: 4, display: "flex", gap: 2, flexWrap: "wrap" }}>
-                  {["👍", "❤️", "😂", "🔥", "🎉"].map(emoji => (
+                  {["👍", "❤️", "😂", "🔥", "🎉", "😍", "👏", "💯"].map(emoji => (
                     <button
                       key={emoji}
                       onClick={() => addReaction(m.id, emoji)}
