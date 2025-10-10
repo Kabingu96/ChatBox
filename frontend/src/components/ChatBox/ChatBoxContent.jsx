@@ -1560,36 +1560,23 @@ export default function ChatBoxContent({ username, onLogout }) {
                   }
                   
                   try {
-                    const res = await fetch(`${backendHttp}/rooms/create`, {
-                      method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json',
-                        'X-Username': username
-                      },
-                      body: JSON.stringify({
-                        name: newRoomName.trim(),
-                        description: newRoomDescription.trim(),
-                        password: newRoomPassword,
-                        isPrivate: newRoomIsPrivate
-                      })
+                    const newRoom = await createRoomHandler({
+                      name: newRoomName.trim(),
+                      description: newRoomDescription.trim(),
+                      password: newRoomPassword,
+                      isPrivate: newRoomIsPrivate
                     });
                     
-                    if (res.ok) {
-                      const newRoom = await res.json();
-                      setAvailableRooms(prev => [...prev, newRoom]);
-                      setCurrentRoom(newRoom.name);
-                      setMessages([]);
-                      setShowCreateRoom(false);
-                      setNewRoomName('');
-                      setNewRoomDescription('');
-                      setNewRoomPassword('');
-                      setNewRoomIsPrivate(false);
-                    } else {
-                      const error = await res.text();
-                      alert(error || 'Failed to create room');
-                    }
+                    setCurrentRoom(newRoom.name);
+                    setMessages([]);
+                    setShowCreateRoom(false);
+                    setNewRoomName('');
+                    setNewRoomDescription('');
+                    setNewRoomPassword('');
+                    setNewRoomIsPrivate(false);
                   } catch (err) {
-                    alert('Failed to create room');
+                    console.error('Room creation error:', err);
+                    alert(err.message || 'Failed to create room');
                   }
                 }}
                 style={{

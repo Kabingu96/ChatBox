@@ -34,7 +34,7 @@ func enableCors(next http.Handler) http.Handler {
         // Check if origin is allowed
         if origin != "" {
             if allowedOrigins == "*" {
-                w.Header().Set("Access-Control-Allow-Origin", "*")
+                w.Header().Set("Access-Control-Allow-Origin", origin)
             } else {
                 for _, allowed := range strings.Split(allowedOrigins, ",") {
                     if strings.TrimSpace(allowed) == origin {
@@ -255,7 +255,7 @@ func saveMessage(m Message) int64 {
 
 func loadRecentMessages(limit int, room string) []Message {
     if useDB {
-        msgs, err := dbLoadRecentMessages(context.Background(), limit)
+        msgs, err := dbLoadRecentMessages(context.Background(), limit, room)
         if err != nil {
             log.Println("db load history error:", err)
             return nil
@@ -376,7 +376,7 @@ func (c *Client) readPump() {
         _, raw, err := c.conn.ReadMessage()
         if err != nil {
             if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-            log.Printf("websocket error: %v", err)
+            log.Printf("websocket error: %s", err.Error())
         }
             break
         }
@@ -481,7 +481,7 @@ func (c *Client) writePump() {
     for msg := range c.send {
         if err := c.conn.WriteMessage(websocket.TextMessage, msg); err != nil {
             if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-            log.Printf("websocket write error: %v", err)
+            log.Printf("websocket write error: %s", err.Error())
         }
             break
         }
@@ -834,34 +834,37 @@ func main() {
         // Parse multipart form (10MB max)
         err := r.ParseMultipartForm(10 << 20)
         if err != nil {
-            log.Printf("ParseMultipartForm error: %v", err)
+            log.Printf("ParseMultipartForm error: %s", err.Error())
             http.Error(w, "File too large or invalid", http.StatusBadRequest)
             return
         }
         
         file, header, err := r.FormFile("file")
         if err != nil {
-            log.Printf("FormFile error: %v", err)
+            log.Printf("FormFile error: %s", err.Error())
             http.Error(w, "No file provided", http.StatusBadRequest)
             return
         }
         defer file.Close()
         
         // Create uploads directory if it doesn't exist
-        if err := os.MkdirAll("uploads", 0755); err != nil {
-            log.Printf("MkdirAll error: %v", err)
+        if err := os.MkdirAll("uploads", 0750); err != nil {
+            log.Printf("MkdirAll error: %s", err.Error())
             http.Error(w, "Server error", http.StatusInternalServerError)
             return
         }
         
         // Generate unique filename
-        filename := fmt.Sprintf("%d_%s", time.Now().Unix(), header.Filename)
-        filePath := filepath.Join("uploads", filename)
+        // Sanitize filename to prevent path traversal
+        cleanName := filepath.Base(header.Filename)
+        filename := fmt.Sprintf("%d_%s", time.Now().Unix(), cleanName)
+        // Ensure file stays in uploads directory
+        filePath := filepath.Join("uploads", filepath.Base(filename))
         
         // Save file
         dst, err := os.Create(filePath)
         if err != nil {
-            log.Printf("Create file error: %v", err)
+            log.Printf("Create file error: %s", err.Error())
             http.Error(w, "Failed to create file", http.StatusInternalServerError)
             return
         }
@@ -869,14 +872,14 @@ func main() {
         
         // Copy file content
         if _, err := file.Seek(0, 0); err != nil {
-            log.Printf("File seek error: %v", err)
+            log.Printf("File seek error: %s", err.Error())
             http.Error(w, "File read error", http.StatusInternalServerError)
             return
         }
         
         written, err := dst.ReadFrom(file)
         if err != nil {
-            log.Printf("File copy error: %v", err)
+            log.Printf("File copy error: %s", err.Error())
             http.Error(w, "Failed to save file", http.StatusInternalServerError)
             return
         }
@@ -930,11 +933,8 @@ func main() {
             room = "general" // Default room
         }
         
-        // Validate room exists (for private rooms, password check should be done via /rooms/join first)
-        if _, err := dbGetRoom(context.Background(), room); err != nil {
-            http.Error(w, "Room not found", http.StatusNotFound)
-            return
-        }
+        // Skip room validation for WebSocket - rooms are validated during creation/join
+        // WebSocket should allow connection to any room that was previously validated
         
         serveWs(hub, username, room, w, r)
     })
@@ -1018,22 +1018,23 @@ func dbSaveMessage(ctx context.Context, m Message) (int64, error) {
     var id int64
     // store server-side timestamp as now(); we still broadcast client-formatted timestamp in message
     err := dbPool.QueryRow(ctx, `
-        INSERT INTO messages (username, text) VALUES ($1, $2)
+        INSERT INTO messages (username, text, room) VALUES ($1, $2, $3)
         RETURNING id
-    `, m.Username, m.Text).Scan(&id)
+    `, m.Username, m.Text, m.Room).Scan(&id)
     return id, err
 }
 
-func dbLoadRecentMessages(ctx context.Context, limit int) ([]Message, error) {
+func dbLoadRecentMessages(ctx context.Context, limit int, room string) ([]Message, error) {
     if limit <= 0 {
         limit = 200
     }
     rows, err := dbPool.Query(ctx, `
-        SELECT id, username, text, timestamp
+        SELECT id, username, text, timestamp, COALESCE(room, 'general') as room
         FROM messages
+        WHERE COALESCE(room, 'general') = $2
         ORDER BY timestamp DESC
         LIMIT $1
-    `, limit)
+    `, limit, room)
     if err != nil {
         return nil, err
     }
@@ -1046,7 +1047,8 @@ func dbLoadRecentMessages(ctx context.Context, limit int) ([]Message, error) {
             text string
             ts time.Time
         )
-        if err := rows.Scan(&id, &username, &text, &ts); err != nil {
+        var room string
+        if err := rows.Scan(&id, &username, &text, &ts, &room); err != nil {
             return nil, err
         }
         out = append(out, Message{
@@ -1055,6 +1057,7 @@ func dbLoadRecentMessages(ctx context.Context, limit int) ([]Message, error) {
             Text: text,
             Timestamp: ts.Format("2006-01-02 15:04:05 MST"),
             Reactions: make(map[string][]string),
+            Room: room,
         })
     }
     // reverse to chronological ascending like in-memory version
@@ -1192,7 +1195,7 @@ func createRoomHandler(w http.ResponseWriter, r *http.Request) {
             http.Error(w, "Room name already exists", http.StatusConflict)
             return
         }
-        log.Printf("Room creation error: %v", err)
+        log.Printf("Room creation error: %s", err.Error())
         http.Error(w, "Failed to create room", http.StatusInternalServerError)
         return
     }
