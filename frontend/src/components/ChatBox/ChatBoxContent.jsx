@@ -815,14 +815,7 @@ export default function ChatBoxContent({ username, onLogout }) {
 
   const isMobile = window.innerWidth <= 768;
   
-  const containerStyle = {
-    display: "flex",
-    height: "100vh",
-    backgroundColor: darkMode ? "#0f1720" : "#f3f4f6",
-    color: darkMode ? "#e5e7eb" : "#0f1720",
-    fontFamily: "Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial",
-    position: "relative",
-  };
+  // Use CSS classes instead of inline styles for theming
   const chatContainerStyle = {
     display: "flex",
     flexDirection: "column",
@@ -903,9 +896,9 @@ export default function ChatBoxContent({ username, onLogout }) {
   }, []);
 
   return (
-    <div style={containerStyle}>
-      <div style={chatContainerStyle}>
-      <div style={headerStyle}>
+    <div className={`chat-container ${darkMode ? 'dark' : ''}`}>
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
+      <div className="chat-header">
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <button
             onClick={() => setShowSidebar(!showSidebar)}
@@ -1234,7 +1227,7 @@ export default function ChatBoxContent({ username, onLogout }) {
       )}
 
       <div 
-        style={messagesWrapStyle}
+        className="messages-wrap"
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onScroll={(e) => {
@@ -1252,21 +1245,13 @@ export default function ChatBoxContent({ username, onLogout }) {
             justifyContent: isMine ? "flex-end" : "flex-start",
             marginBottom: 10,
           };
-          const bubbleStyle = {
-            backgroundColor: isMine ? (darkMode ? "#064e4e" : "#dcf8c6") : (darkMode ? "#1f2937" : "#ffffff"),
-            color: darkMode ? "#fff" : "#111827",
-            padding: "8px 12px",
-            borderRadius: 12,
-            maxWidth: isMobile ? "95%" : "72%",
-            boxShadow: isMine ? "0 3px 8px rgba(2,6,23,0.2)" : "0 1px 3px rgba(2,6,23,0.06)",
-          };
           const nameStyle = { fontSize: 12, fontWeight: 700, marginBottom: 4, opacity: 0.9 };
           const textStyle = { whiteSpace: "pre-wrap" };
           const tsStyle = { fontSize: 11, textAlign: "right", marginTop: 6, opacity: 0.7 };
 
           return (
-            <div key={m.id} style={wrapperStyle}>
-              <div style={bubbleStyle}>
+            <div key={m.id} className="message-wrapper">
+              <div className={`message-bubble ${isMine ? 'mine' : 'other'}`}>
                 <div style={{ display: "flex", alignItems: "center", marginBottom: 4 }}>
                   {!isMine && (
                     <div style={{
@@ -1685,7 +1670,7 @@ export default function ChatBoxContent({ username, onLogout }) {
         </div>
       )}
       
-      <div style={inputBarStyle}>
+      <div className="input-bar">
         <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
           <div style={{
             position: "absolute",
