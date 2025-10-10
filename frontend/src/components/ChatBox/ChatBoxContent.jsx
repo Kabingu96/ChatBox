@@ -839,7 +839,7 @@ export default function ChatBoxContent({ username, onLogout }) {
   };
   const inputBarStyle = {
     display: "flex",
-    gap: isMobile ? "6px" : "10px",
+    gap: isMobile ? "4px" : "6px",
     padding: isMobile ? "8px" : "12px",
     borderTop: `1px solid ${darkMode ? "#1f2937" : "#e5e7eb"}`,
     alignItems: "center",
@@ -1467,7 +1467,7 @@ export default function ChatBoxContent({ username, onLogout }) {
       )}
       
       <div style={inputBarStyle}>
-        <div style={{ position: "relative", flex: 1 }}>
+        <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
           <div style={{
             position: "absolute",
             left: 8,
@@ -1680,18 +1680,19 @@ export default function ChatBoxContent({ username, onLogout }) {
             }
           }}
           style={{
-            padding: isMobile ? "8px" : "10px",
+            padding: "0",
             borderRadius: "50%",
             border: "none",
             cursor: "pointer",
             backgroundColor: darkMode ? '#6b7280' : '#9ca3af',
             color: "#fff",
             fontSize: isMobile ? '12px' : '14px',
-            width: isMobile ? '36px' : '40px',
-            height: isMobile ? '36px' : '40px',
+            width: isMobile ? '32px' : '36px',
+            height: isMobile ? '32px' : '36px',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center'
+            justifyContent: 'center',
+            flexShrink: 0
           }}
           title={`Keyword alerts: ${keywords.join(', ')}`}
         >
@@ -1700,18 +1701,19 @@ export default function ChatBoxContent({ username, onLogout }) {
         <button
           onClick={() => setIsRichTextMode(!isRichTextMode)}
           style={{
-            padding: isMobile ? "8px" : "10px",
+            padding: "0",
             borderRadius: "50%",
             border: "none",
             cursor: "pointer",
             backgroundColor: isRichTextMode ? (darkMode ? '#7c3aed' : '#8b5cf6') : (darkMode ? '#6b7280' : '#9ca3af'),
             color: "#fff",
             fontSize: isMobile ? '12px' : '14px',
-            width: isMobile ? '36px' : '40px',
-            height: isMobile ? '36px' : '40px',
+            width: isMobile ? '32px' : '36px',
+            height: isMobile ? '32px' : '36px',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center'
+            justifyContent: 'center',
+            flexShrink: 0
           }}
           title={isRichTextMode ? 'Switch to single line' : 'Switch to multi-line editor'}
         >
@@ -1720,7 +1722,7 @@ export default function ChatBoxContent({ username, onLogout }) {
         <button
           onClick={isRecording ? stopRecording : startRecording}
           style={{
-            padding: isMobile ? "8px" : "10px",
+            padding: "0",
             borderRadius: "50%",
             border: "none",
             cursor: "pointer",
@@ -1728,11 +1730,12 @@ export default function ChatBoxContent({ username, onLogout }) {
             color: "#fff",
             position: 'relative',
             fontSize: isMobile ? '12px' : '14px',
-            width: isMobile ? '36px' : '40px',
-            height: isMobile ? '36px' : '40px',
+            width: isMobile ? '32px' : '36px',
+            height: isMobile ? '32px' : '36px',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center'
+            justifyContent: 'center',
+            flexShrink: 0
           }}
           title={isRecording ? `Recording... ${recordingTime}s` : 'Record voice message'}
         >
@@ -1755,18 +1758,19 @@ export default function ChatBoxContent({ username, onLogout }) {
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
           style={{
-            padding: isMobile ? "8px" : "10px",
+            padding: "0",
             borderRadius: "50%",
             border: "none",
             cursor: "pointer",
             backgroundColor: uploading ? (darkMode ? '#6b7280' : '#9ca3af') : (darkMode ? '#059669' : '#10b981'),
             color: "#fff",
             fontSize: isMobile ? '12px' : '14px',
-            width: isMobile ? '36px' : '40px',
-            height: isMobile ? '36px' : '40px',
+            width: isMobile ? '32px' : '36px',
+            height: isMobile ? '32px' : '36px',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center'
+            justifyContent: 'center',
+            flexShrink: 0
           }}
         >
           {uploading ? '📤' : '📎'}
@@ -1781,7 +1785,9 @@ export default function ChatBoxContent({ username, onLogout }) {
             backgroundColor: darkMode ? "#0ea5a4" : "#2563eb",
             color: "#fff",
             fontSize: isMobile ? '12px' : '14px',
-            fontWeight: '600'
+            fontWeight: '600',
+            flexShrink: 0,
+            minWidth: isMobile ? '60px' : '70px'
           }}
         >
           Send
