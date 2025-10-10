@@ -39,21 +39,33 @@ export default function AuthForm({ setUsername }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return; // Prevent double submission
     setLoading(true);
     setError("");
     const endpoint = isLogin ? "/login" : "/register";
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+      
       const res = await apiRequest(endpoint, {
         method: "POST",
         body: JSON.stringify({ username: usernameInput, password }),
+        signal: controller.signal,
       });
+      
+      clearTimeout(timeoutId);
+      
       if (!res.ok) {
         const text = await res.text();
         throw new Error(text);
       }
       setUsername(usernameInput); // successful login/register
     } catch (err) {
-      setError(err.message || "Error");
+      if (err.name === 'AbortError') {
+        setError('Request timeout. Please try again.');
+      } else {
+        setError(err.message || "Error");
+      }
     } finally {
       setLoading(false);
     }

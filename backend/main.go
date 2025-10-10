@@ -567,8 +567,8 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    // create user
-    hash, _ := bcrypt.GenerateFromPassword([]byte(u.Password), bcrypt.DefaultCost)
+    // create user with faster bcrypt cost
+    hash, _ := bcrypt.GenerateFromPassword([]byte(u.Password), bcrypt.MinCost)
     if useDB {
         if err := dbRegisterUser(context.Background(), u.Username, hash); err != nil {
             http.Error(w, "Username may already exist", http.StatusBadRequest)
@@ -1181,7 +1181,7 @@ func createRoomHandler(w http.ResponseWriter, r *http.Request) {
     
     var passwordHash []byte
     if req.IsPrivate && req.Password != "" {
-        hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+        hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.MinCost)
         if err != nil {
             http.Error(w, "Password hashing failed", http.StatusInternalServerError)
             return
