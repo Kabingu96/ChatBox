@@ -249,7 +249,9 @@ func (h *Hub) run() {
 
 func saveMessage(m Message) int64 {
     if useDB {
-        id, err := dbSaveMessage(context.Background(), m)
+        ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+        defer cancel()
+        id, err := dbSaveMessage(ctx, m)
         if err != nil {
             log.Println("db save error:", err)
         }
@@ -265,7 +267,9 @@ func saveMessage(m Message) int64 {
 
 func loadRecentMessages(limit int, room string) []Message {
     if useDB {
-        msgs, err := dbLoadRecentMessages(context.Background(), limit, room)
+        ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+        defer cancel()
+        msgs, err := dbLoadRecentMessages(ctx, limit, room)
         if err != nil {
             log.Println("db load history error:", err)
             return nil
@@ -298,7 +302,9 @@ func loadRecentMessages(limit int, room string) []Message {
 
 func editMessageText(id int64, text string) bool {
     if useDB {
-        if err := dbEditMessageText(context.Background(), id, text); err != nil {
+        ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+        defer cancel()
+        if err := dbEditMessageText(ctx, id, text); err != nil {
             log.Println("db edit error:", err)
             return false
         }
@@ -317,7 +323,9 @@ func editMessageText(id int64, text string) bool {
 
 func deleteMessageByID(id int64) bool {
     if useDB {
-        if err := dbDeleteMessageByID(context.Background(), id); err != nil {
+        ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+        defer cancel()
+        if err := dbDeleteMessageByID(ctx, id); err != nil {
             log.Println("db delete error:", err)
             return false
         }
@@ -952,6 +960,30 @@ func main() {
     // Serve uploaded files with proper headers
     http.Handle("/files/", enableCors(http.StripPrefix("/files/", http.FileServer(http.Dir("uploads/")))))
 
+    // Health check endpoint
+    http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+        status := map[string]interface{}{
+            "status": "ok",
+            "database": "disconnected",
+        }
+        
+        if useDB && dbPool != nil {
+            if err := dbPool.Ping(context.Background()); err == nil {
+                stats := dbPool.Stat()
+                status["database"] = "connected"
+                status["db_stats"] = map[string]interface{}{
+                    "total_conns":     stats.TotalConns(),
+                    "acquired_conns":  stats.AcquiredConns(),
+                    "idle_conns":      stats.IdleConns(),
+                    "max_conns":       stats.MaxConns(),
+                }
+            }
+        }
+        
+        w.Header().Set("Content-Type", "application/json")
+        json.NewEncoder(w).Encode(status)
+    })
+
     // WebSocket endpoint expects ?username=XYZ&room=ABC from frontend after login
     http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
         username := r.URL.Query().Get("username")
@@ -990,6 +1022,14 @@ func initDB(ctx context.Context) error {
     if err != nil {
         return err
     }
+    
+    // Optimize connection pool settings
+    cfg.MaxConns = 25                        // Max connections
+    cfg.MinConns = 5                         // Min connections to keep alive
+    cfg.MaxConnLifetime = time.Hour          // Max connection lifetime
+    cfg.MaxConnIdleTime = time.Minute * 30   // Max idle time
+    cfg.HealthCheckPeriod = time.Minute * 5  // Health check interval
+    
     pool, err := pgxpool.NewWithConfig(ctx, cfg)
     if err != nil {
         return err
@@ -1000,6 +1040,7 @@ func initDB(ctx context.Context) error {
     }
     dbPool = pool
     useDB = true
+    log.Printf("✅ Database connected with optimized pool (max: %d, min: %d)", cfg.MaxConns, cfg.MinConns)
     if err := runMigrations(ctx, dbPool, "migrations"); err != nil {
         return err
     }
