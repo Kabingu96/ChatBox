@@ -863,16 +863,7 @@ export default function ChatBoxContent({ username, onLogout }) {
     alignItems: "center",
     backgroundColor: darkMode ? "#071018" : "#fafafa",
   };
-  const inputStyle = {
-    flex: 1,
-    padding: "12px 16px",
-    borderRadius: "999px",
-    border: `1px solid ${darkMode ? "#334155" : "#d1d5db"}`,
-    outline: "none",
-    backgroundColor: darkMode ? "#0b1220" : "#fff",
-    color: darkMode ? "#e5e7eb" : "#111827",
-    boxShadow: "0 2px 6px rgba(0,0,0,0.06)",
-  };
+  // Use CSS classes for input styling
   const btnStyle = {
     padding: "10px 16px",
     borderRadius: "999px",
@@ -1771,8 +1762,8 @@ export default function ChatBoxContent({ username, onLogout }) {
                 }
               }}
               placeholder="Type your message... (Shift+Enter for new line)"
+              className="input-bar-field"
               style={{
-                ...inputStyle,
                 paddingLeft: isMobile ? "90px" : "100px",
                 minHeight: "40px",
                 maxHeight: "120px",
@@ -1787,8 +1778,8 @@ export default function ChatBoxContent({ username, onLogout }) {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={onKeyDown}
               placeholder="Type your message..."
+              className="input-bar-field"
               style={{
-                ...inputStyle,
                 paddingLeft: isMobile ? "90px" : "100px",
               }}
             />
