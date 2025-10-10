@@ -186,6 +186,9 @@ export default function ChatBoxContent({ username, onLogout }) {
   const [mediaRecorder, setMediaRecorder] = useState(null);
   const [recordingTime, setRecordingTime] = useState(0);
   const [expandedReactions, setExpandedReactions] = useState({});
+  const [roomJoinTime, setRoomJoinTime] = useState(null);
+  const [autoScroll, setAutoScroll] = useState(true);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const recordingInterval = useRef(null);
   const endRef = useRef(null);
   const audioRef = useRef(null);
@@ -269,6 +272,7 @@ export default function ChatBoxContent({ username, onLogout }) {
     socket.onopen = () => {
       console.log("✅ WebSocket connected to room:", currentRoom);
       setConnectionStatus('connected');
+      setRoomJoinTime(new Date());
     };
 
     socket.onmessage = (event) => {
@@ -436,10 +440,12 @@ export default function ChatBoxContent({ username, onLogout }) {
     return filtered;
   })();
 
-  // Scroll to bottom
+  // Scroll to bottom (only if auto-scroll is enabled)
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [filteredMessages]);
+    if (autoScroll) {
+      endRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [filteredMessages, autoScroll]);
 
   // Typing indicator with debounce
   useEffect(() => {
@@ -854,6 +860,7 @@ export default function ChatBoxContent({ username, onLogout }) {
     padding: isMobile ? "8px" : "16px",
     overflowY: "auto",
     backgroundColor: darkMode ? "#0b1220" : "#ffffff",
+    position: "relative",
   };
   const inputBarStyle = {
     display: "flex",
@@ -932,7 +939,12 @@ export default function ChatBoxContent({ username, onLogout }) {
             <div>
               <strong style={{ fontSize: isMobile ? 16 : 18 }}>ChatBox</strong>
               <div style={{ fontSize: isMobile ? 11 : 12, opacity: 0.8 }}>
-                #{currentRoom} • {username}
+                #{currentRoom} • {username} • {filteredMessages.length} messages
+                {roomJoinTime && (
+                  <span style={{ marginLeft: 8, fontSize: 10 }}>
+                    • Joined {formatTimeAgo(roomJoinTime.toISOString())}
+                  </span>
+                )}
                 <span style={{ 
                   marginLeft: 8, 
                   color: connectionStatus === 'connected' ? '#10b981' : connectionStatus === 'reconnecting' ? '#f59e0b' : '#ef4444',
@@ -1051,6 +1063,40 @@ export default function ChatBoxContent({ username, onLogout }) {
             title="Profile settings"
           >
             👤
+          </button>
+          <button
+            onClick={() => setAutoScroll(!autoScroll)}
+            style={{
+              padding: isMobile ? "4px 6px" : "6px 10px",
+              borderRadius: 8,
+              border: "1px solid transparent",
+              backgroundColor: autoScroll ? (darkMode ? "#10b981" : "#059669") : (darkMode ? "#6b7280" : "#9ca3af"),
+              color: "#fff",
+              cursor: "pointer",
+              fontSize: "12px",
+            }}
+            title={autoScroll ? "Auto-scroll ON (click to disable)" : "Auto-scroll OFF (click to enable)"}
+          >
+            {autoScroll ? "⬇️" : "⏸️"}
+          </button>
+          <button
+            onClick={() => {
+              if (window.confirm('Clear all messages from this room? This only clears your local view.')) {
+                setMessages([]);
+              }
+            }}
+            style={{
+              padding: isMobile ? "4px 6px" : "6px 10px",
+              borderRadius: 8,
+              border: "1px solid transparent",
+              backgroundColor: darkMode ? "#f59e0b" : "#fbbf24",
+              color: "#fff",
+              cursor: "pointer",
+              fontSize: "12px",
+            }}
+            title="Clear chat history (local only)"
+          >
+            🧽
           </button>
           <button
             onClick={onLogout}
@@ -1191,6 +1237,13 @@ export default function ChatBoxContent({ username, onLogout }) {
         style={messagesWrapStyle}
         onDrop={handleDrop}
         onDragOver={handleDragOver}
+        onScroll={(e) => {
+          if (!autoScroll) {
+            const { scrollTop, scrollHeight, clientHeight } = e.target;
+            const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
+            setShowScrollToBottom(!isAtBottom);
+          }
+        }}
       >
         {filteredMessages.map((m) => {
           const isMine = !!m.fromUser;
@@ -1572,6 +1625,36 @@ export default function ChatBoxContent({ username, onLogout }) {
           </div>
         )}
         <div ref={endRef} />
+        
+        {/* Scroll to bottom button */}
+        {!autoScroll && showScrollToBottom && (
+          <button
+            onClick={() => {
+              endRef.current?.scrollIntoView({ behavior: "smooth" });
+              setShowScrollToBottom(false);
+            }}
+            style={{
+              position: "absolute",
+              bottom: "20px",
+              right: "20px",
+              padding: "8px 12px",
+              borderRadius: "20px",
+              border: "none",
+              backgroundColor: darkMode ? "#0ea5a4" : "#2563eb",
+              color: "#fff",
+              cursor: "pointer",
+              fontSize: "12px",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+              zIndex: 10,
+              display: "flex",
+              alignItems: "center",
+              gap: "4px",
+            }}
+            title="Scroll to bottom"
+          >
+            ⬇️ Latest
+          </button>
+        )}
       </div>
 
       {replyingTo && (
@@ -2024,6 +2107,7 @@ export default function ChatBoxContent({ username, onLogout }) {
                   
                   setCurrentRoom(roomName);
                   setMessages([]); // Clear messages when switching rooms
+                  setRoomJoinTime(null); // Reset join time when switching rooms
                 }
               }}
               style={{
@@ -2265,6 +2349,7 @@ export default function ChatBoxContent({ username, onLogout }) {
                     
                     setCurrentRoom(newRoom.name);
                     setMessages([]);
+                    setRoomJoinTime(null);
                     setShowCreateRoom(false);
                     setNewRoomName('');
                     setNewRoomDescription('');
