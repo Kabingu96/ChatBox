@@ -40,6 +40,17 @@ export default function AuthForm({ setUsername }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (loading) return; // Prevent double submission
+    
+    // Basic validation
+    if (!usernameInput.trim()) {
+      setError('Username is required');
+      return;
+    }
+    if (password.length < 3) {
+      setError('Password must be at least 3 characters');
+      return;
+    }
+    
     setLoading(true);
     setError("");
     const endpoint = isLogin ? "/login" : "/register";
@@ -49,7 +60,7 @@ export default function AuthForm({ setUsername }) {
       
       const res = await apiRequest(endpoint, {
         method: "POST",
-        body: JSON.stringify({ username: usernameInput, password }),
+        body: JSON.stringify({ username: usernameInput.trim(), password }),
         signal: controller.signal,
       });
       
@@ -57,14 +68,23 @@ export default function AuthForm({ setUsername }) {
       
       if (!res.ok) {
         const text = await res.text();
-        throw new Error(text);
+        if (res.status === 401) {
+          throw new Error('Invalid username or password');
+        } else if (res.status === 409) {
+          throw new Error('Username already exists');
+        } else if (res.status >= 500) {
+          throw new Error('Server error. Please try again later.');
+        }
+        throw new Error(text || 'Authentication failed');
       }
-      setUsername(usernameInput); // successful login/register
+      setUsername(usernameInput.trim()); // successful login/register
     } catch (err) {
       if (err.name === 'AbortError') {
-        setError('Request timeout. Please try again.');
+        setError('Connection timeout. Please check your internet and try again.');
+      } else if (err.message.includes('fetch')) {
+        setError('Unable to connect to server. Please try again later.');
       } else {
-        setError(err.message || "Error");
+        setError(err.message || "Authentication failed");
       }
     } finally {
       setLoading(false);

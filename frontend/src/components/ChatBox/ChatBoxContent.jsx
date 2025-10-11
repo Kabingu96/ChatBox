@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
+import './ChatBox.css';
+import LoadingSpinner from './LoadingSpinner';
 
 // Helper function to format timestamps
 const formatTimeAgo = (timestamp) => {
@@ -128,7 +130,7 @@ const formatMessage = (text, currentUsername, searchTerm = '') => {
           borderRadius: 2,
           fontWeight: 'bold'
         } 
-      }, match.content));
+      }, match.full));
     }
     
     lastIndex = match.end;
@@ -168,6 +170,8 @@ export default function ChatBoxContent({ username, onLogout }) {
   const [keywords, setKeywords] = useState(['urgent', 'help', 'meeting']);
   const [connectionStatus, setConnectionStatus] = useState('connecting');
   const [userStatus, setUserStatus] = useState('online');
+  const [reconnectAttempts, setReconnectAttempts] = useState(0);
+  const [showConnectionError, setShowConnectionError] = useState(false);
   const [searchFilters, setSearchFilters] = useState({
     dateRange: 'all', // 'today', 'week', 'month', 'all'
     userFilter: 'all',
@@ -186,6 +190,8 @@ export default function ChatBoxContent({ username, onLogout }) {
   const [mediaRecorder, setMediaRecorder] = useState(null);
   const [recordingTime, setRecordingTime] = useState(0);
   const [expandedReactions, setExpandedReactions] = useState({});
+  const [showToolbar, setShowToolbar] = useState(false);
+  const [showRightToolbar, setShowRightToolbar] = useState(false);
   const [roomJoinTime, setRoomJoinTime] = useState(null);
   const [autoScroll, setAutoScroll] = useState(true);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
@@ -272,6 +278,8 @@ export default function ChatBoxContent({ username, onLogout }) {
     socket.onopen = () => {
       console.log("✅ WebSocket connected to room:", currentRoom);
       setConnectionStatus('connected');
+      setReconnectAttempts(0);
+      setShowConnectionError(false);
       setRoomJoinTime(new Date());
     };
 
@@ -368,13 +376,22 @@ export default function ChatBoxContent({ username, onLogout }) {
     socket.onclose = () => {
       console.log("❌ WebSocket closed, attempting reconnect...");
       setConnectionStatus('reconnecting');
+      setReconnectAttempts(prev => prev + 1);
+      
+      const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000); // Exponential backoff, max 30s
+      
       setTimeout(() => {
         if (!ws || ws.readyState === WebSocket.CLOSED) {
-          console.log("🔄 Reconnecting WebSocket...");
-          const newSocket = new WebSocket(`${backendWs}/ws?username=${username}&room=${currentRoom}`);
-          setWs(newSocket);
+          if (reconnectAttempts < 5) {
+            console.log(`🔄 Reconnecting WebSocket... (attempt ${reconnectAttempts + 1})`);
+            const newSocket = new WebSocket(`${backendWs}/ws?username=${username}&room=${currentRoom}`);
+            setWs(newSocket);
+          } else {
+            setConnectionStatus('failed');
+            setShowConnectionError(true);
+          }
         }
-      }, 3000);
+      }, delay);
     };
     socket.onerror = (err) => console.error("WebSocket error:", err);
 
@@ -504,7 +521,10 @@ export default function ChatBoxContent({ username, onLogout }) {
   };
   
   const sendMessage = () => {
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      setShowConnectionError(true);
+      return;
+    }
     const textTrimmed = input.trim();
     if (!textTrimmed) return;
     
@@ -564,7 +584,10 @@ export default function ChatBoxContent({ username, onLogout }) {
   };
 
   const addReaction = (messageId, emoji) => {
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      setShowConnectionError(true);
+      return;
+    }
     ws.send(JSON.stringify({ 
       type: "reaction", 
       messageId, 
@@ -631,6 +654,12 @@ export default function ChatBoxContent({ username, onLogout }) {
   const handleFileUpload = async (file) => {
     if (!file) return;
     
+    // File size validation (10MB limit)
+    if (file.size > 10 * 1024 * 1024) {
+      alert('File size must be less than 10MB');
+      return;
+    }
+    
     setUploading(true);
     const formData = new FormData();
     formData.append('file', file);
@@ -641,7 +670,14 @@ export default function ChatBoxContent({ username, onLogout }) {
         body: formData,
       });
       
-      if (!response.ok) throw new Error('Upload failed');
+      if (!response.ok) {
+        if (response.status === 413) {
+          throw new Error('File too large. Maximum size is 10MB.');
+        } else if (response.status === 415) {
+          throw new Error('File type not supported.');
+        }
+        throw new Error('Upload failed. Please try again.');
+      }
       
       const result = await response.json();
       
@@ -678,7 +714,7 @@ export default function ChatBoxContent({ username, onLogout }) {
       }
     } catch (err) {
       console.error('File upload failed:', err);
-      alert('File upload failed. Please try again.');
+      alert(err.message || 'File upload failed. Please try again.');
     } finally {
       setUploading(false);
     }
@@ -813,7 +849,17 @@ export default function ChatBoxContent({ username, onLogout }) {
 
 
 
-  const isMobile = window.innerWidth <= 768;
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  
+  // Handle window resize for mobile responsiveness
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   
   // Use CSS classes instead of inline styles for theming
   const chatContainerStyle = {
@@ -839,10 +885,10 @@ export default function ChatBoxContent({ username, onLogout }) {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: isMobile ? "8px" : "12px",
+    padding: isMobile ? "6px" : "12px",
     borderBottom: `1px solid ${darkMode ? "#1f2937" : "#e5e7eb"}`,
-    flexWrap: isMobile ? "wrap" : "nowrap",
-    gap: isMobile ? "8px" : "0",
+    flexWrap: "wrap",
+    gap: isMobile ? "4px" : "8px",
     position: "sticky",
     top: 0,
     zIndex: 100,
@@ -934,13 +980,21 @@ export default function ChatBoxContent({ username, onLogout }) {
                   color: connectionStatus === 'connected' ? '#10b981' : connectionStatus === 'reconnecting' ? '#f59e0b' : '#ef4444',
                   fontSize: 10
                 }}>
-                  {connectionStatus === 'connected' ? '• Online' : connectionStatus === 'reconnecting' ? '• Reconnecting...' : '• Offline'}
+                  {connectionStatus === 'connected' ? '• Online' : 
+                   connectionStatus === 'reconnecting' ? `• Reconnecting... (${reconnectAttempts}/5)` : 
+                   connectionStatus === 'failed' ? '• Connection Failed' : '• Offline'}
                 </span>
               </div>
             </div>
           </div>
         </div>
-        <div style={{ display: "flex", gap: isMobile ? "4px" : "8px", flexWrap: "wrap" }}>
+        <div style={{ 
+          display: "flex", 
+          gap: isMobile ? "2px" : "6px", 
+          flexWrap: "wrap",
+          alignItems: "center",
+          maxWidth: isMobile ? "100%" : "auto"
+        }}>
           <button
             onClick={async () => {
               const newMode = !darkMode;
@@ -962,7 +1016,7 @@ export default function ChatBoxContent({ username, onLogout }) {
               backgroundColor: darkMode ? "#111827" : "#e5e7eb",
               color: darkMode ? "#fff" : "#111827",
               cursor: "pointer",
-              fontSize: isMobile ? "11px" : "14px",
+              fontSize: isMobile ? "10px" : "14px",
             }}
           >
             {darkMode ? "Light Mode" : "Dark Mode"}
@@ -1012,7 +1066,7 @@ export default function ChatBoxContent({ username, onLogout }) {
               cursor: "pointer",
               fontSize: "12px",
             }}
-            title="Advanced search filters"
+            title="Filter messages by date, user, or content type"
           >
             🎛️
           </button>
@@ -1044,7 +1098,7 @@ export default function ChatBoxContent({ username, onLogout }) {
               cursor: "pointer",
               fontSize: "12px",
             }}
-            title="Profile settings"
+            title="Edit your profile, avatar, and status"
           >
             👤
           </button>
@@ -1078,7 +1132,7 @@ export default function ChatBoxContent({ username, onLogout }) {
               cursor: "pointer",
               fontSize: "12px",
             }}
-            title="Clear chat history (local only)"
+            title="Clear all messages from view (doesn't delete from server)"
           >
             🧽
           </button>
@@ -1091,13 +1145,42 @@ export default function ChatBoxContent({ username, onLogout }) {
               backgroundColor: darkMode ? "#dc2626" : "#ef4444",
               color: "#fff",
               cursor: "pointer",
-              fontSize: isMobile ? "11px" : "14px",
+              fontSize: isMobile ? "10px" : "14px",
             }}
           >
             Logout
           </button>
         </div>
       </div>
+
+      {/* Connection Error Banner */}
+      {showConnectionError && (
+        <div style={{
+          padding: "8px 12px",
+          backgroundColor: darkMode ? "#7f1d1d" : "#fef2f2",
+          color: darkMode ? "#fca5a5" : "#dc2626",
+          borderBottom: `1px solid ${darkMode ? "#991b1b" : "#fecaca"}`,
+          fontSize: "12px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}>
+          <span>⚠️ Connection lost. Messages may not be delivered.</span>
+          <button
+            onClick={() => setShowConnectionError(false)}
+            style={{
+              background: "none",
+              border: "none",
+              color: "inherit",
+              cursor: "pointer",
+              fontSize: "14px",
+              padding: "2px 4px",
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {showSearch && (
         <div style={{
@@ -1655,102 +1738,57 @@ export default function ChatBoxContent({ username, onLogout }) {
         </div>
       )}
       
-      <div className="input-bar">
-        <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
-          <div style={{
-            position: "absolute",
-            left: 8,
-            top: "50%",
-            transform: "translateY(-50%)",
-            display: "flex",
-            gap: "4px",
-            zIndex: 10,
-          }}>
-            <button
-              onClick={() => {
-                setInput(prev => prev + '**bold**');
-              }}
-              style={{
-                padding: "4px 6px",
-                borderRadius: 4,
-                border: "none",
-                backgroundColor: darkMode ? '#374151' : '#e5e7eb',
-                color: darkMode ? '#fff' : '#111827',
-                cursor: "pointer",
-                fontSize: "12px",
-                fontWeight: "bold",
-              }}
-              title="Insert bold text (**bold**)"
-            >
-              B
-            </button>
-            <button
-              onClick={() => {
-                setInput(prev => prev + '*italic*');
-              }}
-              style={{
-                padding: "4px 6px",
-                borderRadius: 4,
-                border: "none",
-                backgroundColor: darkMode ? '#374151' : '#e5e7eb',
-                color: darkMode ? '#fff' : '#111827',
-                cursor: "pointer",
-                fontSize: "12px",
-                fontStyle: "italic",
-              }}
-              title="Insert italic text (*italic*)"
-            >
-              I
-            </button>
-            <button
-              onClick={() => {
-                setInput(prev => prev + '`code`');
-              }}
-              style={{
-                padding: "4px 6px",
-                borderRadius: 4,
-                border: "none",
-                backgroundColor: darkMode ? '#374151' : '#e5e7eb',
-                color: darkMode ? '#fff' : '#111827',
-                cursor: "pointer",
-                fontSize: "10px",
-                fontFamily: "monospace",
-              }}
-              title="Insert code (`code`)"
-            >
-              {"{}"}
-            </button>
-            <button
-              onClick={() => setShowMarkdownPreview(!showMarkdownPreview)}
-              style={{
-                padding: "4px 6px",
-                borderRadius: 4,
-                border: "none",
-                backgroundColor: showMarkdownPreview ? (darkMode ? '#7c3aed' : '#8b5cf6') : (darkMode ? '#374151' : '#e5e7eb'),
-                color: showMarkdownPreview ? '#fff' : (darkMode ? '#fff' : '#111827'),
-                cursor: "pointer",
-                fontSize: "12px",
-              }}
-              title="Toggle markdown preview"
-            >
-              👁️
-            </button>
-            <button
-              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-              style={{
-                padding: "4px 6px",
-                borderRadius: 4,
-                border: "none",
-                backgroundColor: showEmojiPicker ? (darkMode ? '#0ea5a4' : '#2563eb') : (darkMode ? '#374151' : '#e5e7eb'),
-                color: showEmojiPicker ? '#fff' : (darkMode ? '#fff' : '#111827'),
-                cursor: "pointer",
-                fontSize: "12px",
-              }}
-              title="Emoji picker"
-            >
-              😀
-            </button>
-          </div>
+      <div className="input-bar" style={{ display: "flex", alignItems: "center", gap: isMobile ? "2px" : "4px" }}>
+        {/* Show hidden icons button */}
+        <div style={{ position: "relative", flexShrink: 0 }}>
+          <button
+            onClick={() => setShowToolbar(!showToolbar)}
+            style={{
+              padding: "6px 8px",
+              borderRadius: 4,
+              border: "none",
+              backgroundColor: showToolbar ? (darkMode ? '#0ea5a4' : '#2563eb') : (darkMode ? '#374151' : '#e5e7eb'),
+              color: showToolbar ? '#fff' : (darkMode ? '#fff' : '#111827'),
+              cursor: "pointer",
+              fontSize: "12px",
+            }}
+            title="Show hidden icons"
+          >
+            ⚙️
+          </button>
+          
+          {showToolbar && (
+            <div style={{
+              position: "absolute",
+              bottom: "100%",
+              left: 0,
+              backgroundColor: darkMode ? "#1f2937" : "#ffffff",
+              border: `1px solid ${darkMode ? "#374151" : "#d1d5db"}`,
+              borderRadius: 8,
+              padding: "8px",
+              marginBottom: 8,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+              zIndex: 1000,
+              display: "flex",
+              gap: "4px",
+              flexWrap: "wrap",
+              minWidth: "200px",
+            }}>
+              <button onClick={() => setInput(prev => prev + '**bold**')} style={{ padding: "4px 6px", borderRadius: 4, border: "none", backgroundColor: darkMode ? '#374151' : '#e5e7eb', color: darkMode ? '#fff' : '#111827', cursor: "pointer", fontSize: "12px", fontWeight: "bold" }} title="Bold">B</button>
+              <button onClick={() => setInput(prev => prev + '*italic*')} style={{ padding: "4px 6px", borderRadius: 4, border: "none", backgroundColor: darkMode ? '#374151' : '#e5e7eb', color: darkMode ? '#fff' : '#111827', cursor: "pointer", fontSize: "12px", fontStyle: "italic" }} title="Italic">I</button>
+              <button onClick={() => setInput(prev => prev + '`code`')} style={{ padding: "4px 6px", borderRadius: 4, border: "none", backgroundColor: darkMode ? '#374151' : '#e5e7eb', color: darkMode ? '#fff' : '#111827', cursor: "pointer", fontSize: "10px", fontFamily: "monospace" }} title="Code">{"{}"}</button>
+              <button onClick={() => setShowMarkdownPreview(!showMarkdownPreview)} style={{ padding: "4px 6px", borderRadius: 4, border: "none", backgroundColor: showMarkdownPreview ? (darkMode ? '#7c3aed' : '#8b5cf6') : (darkMode ? '#374151' : '#e5e7eb'), color: showMarkdownPreview ? '#fff' : (darkMode ? '#fff' : '#111827'), cursor: "pointer", fontSize: "12px" }} title="Preview">👁️</button>
+              <button onClick={() => setShowEmojiPicker(!showEmojiPicker)} style={{ padding: "4px 6px", borderRadius: 4, border: "none", backgroundColor: showEmojiPicker ? (darkMode ? '#0ea5a4' : '#2563eb') : (darkMode ? '#374151' : '#e5e7eb'), color: showEmojiPicker ? '#fff' : (darkMode ? '#fff' : '#111827'), cursor: "pointer", fontSize: "12px" }} title="Emoji">😀</button>
+              <button onClick={() => { const newKeyword = prompt('Add keyword for notifications:', ''); if (newKeyword && newKeyword.trim()) { setKeywords(prev => [...prev, newKeyword.trim().toLowerCase()]); } }} style={{ padding: "4px 6px", borderRadius: 4, border: "none", backgroundColor: darkMode ? '#6b7280' : '#9ca3af', color: "#fff", cursor: "pointer", fontSize: "12px" }} title={`Keywords: ${keywords.join(', ')}`}>🔔</button>
+              <button onClick={() => setIsRichTextMode(!isRichTextMode)} style={{ padding: "4px 6px", borderRadius: 4, border: "none", backgroundColor: isRichTextMode ? (darkMode ? '#7c3aed' : '#8b5cf6') : (darkMode ? '#6b7280' : '#9ca3af'), color: "#fff", cursor: "pointer", fontSize: "12px" }} title={isRichTextMode ? 'Single line' : 'Multi-line'}>{isRichTextMode ? '📝' : '📄'}</button>
+              <button onClick={isRecording ? stopRecording : startRecording} style={{ padding: "4px 6px", borderRadius: 4, border: "none", backgroundColor: isRecording ? '#ef4444' : (darkMode ? '#8b5cf6' : '#7c3aed'), color: "#fff", cursor: "pointer", fontSize: "12px", position: 'relative' }} title={isRecording ? `Recording... ${recordingTime}s` : 'Voice'}>{isRecording ? '⏹️' : '🎤'}{isRecording && <div style={{ position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)', fontSize: '8px', color: '#ef4444', fontWeight: 'bold' }}>{recordingTime}s</div>}</button>
+              <button onClick={() => fileInputRef.current?.click()} disabled={uploading} style={{ padding: "4px 6px", borderRadius: 4, border: "none", backgroundColor: uploading ? (darkMode ? '#6b7280' : '#9ca3af') : (darkMode ? '#059669' : '#10b981'), color: "#fff", cursor: uploading ? 'not-allowed' : "pointer", fontSize: "12px", display: 'flex', alignItems: 'center', gap: '4px' }} title={uploading ? 'Uploading...' : 'Upload file'}>{uploading ? <><LoadingSpinner size={10} color="#fff" /> Up</> : '📎'}</button>
+            </div>
+          )}
+        </div>
+        
+        {/* Text input field */}
+        <div style={{ position: "relative", flex: 1, minWidth: 0, marginLeft: "4px", marginRight: "4px", flexShrink: 1 }}>
           {isRichTextMode ? (
             <textarea
               value={input}
@@ -1764,7 +1802,6 @@ export default function ChatBoxContent({ username, onLogout }) {
               placeholder="Type your message... (Shift+Enter for new line)"
               className="input-bar-field"
               style={{
-                paddingLeft: isMobile ? "90px" : "100px",
                 minHeight: "40px",
                 maxHeight: "120px",
                 resize: "vertical",
@@ -1779,9 +1816,6 @@ export default function ChatBoxContent({ username, onLogout }) {
               onKeyDown={onKeyDown}
               placeholder="Type your message..."
               className="input-bar-field"
-              style={{
-                paddingLeft: isMobile ? "90px" : "100px",
-              }}
             />
           )}
           {showEmojiPicker && (
@@ -1854,116 +1888,52 @@ export default function ChatBoxContent({ username, onLogout }) {
             </div>
           )}
         </div>
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileSelect}
-          style={{ display: 'none' }}
-          accept="image/*,application/pdf,.txt,.doc,.docx"
-        />
-        <button
-          onClick={() => {
-            const newKeyword = prompt('Add keyword for notifications:', '');
-            if (newKeyword && newKeyword.trim()) {
-              setKeywords(prev => [...prev, newKeyword.trim().toLowerCase()]);
-            }
-          }}
-          style={{
-            padding: "0",
-            borderRadius: "50%",
-            border: "none",
-            cursor: "pointer",
-            backgroundColor: darkMode ? '#6b7280' : '#9ca3af',
-            color: "#fff",
-            fontSize: isMobile ? '10px' : '12px',
-            width: isMobile ? '24px' : '28px',
-            height: isMobile ? '24px' : '28px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0
-          }}
-          title={`Keyword alerts: ${keywords.join(', ')}`}
-        >
-          🔔
-        </button>
-        <button
-          onClick={() => setIsRichTextMode(!isRichTextMode)}
-          style={{
-            padding: "0",
-            borderRadius: "50%",
-            border: "none",
-            cursor: "pointer",
-            backgroundColor: isRichTextMode ? (darkMode ? '#7c3aed' : '#8b5cf6') : (darkMode ? '#6b7280' : '#9ca3af'),
-            color: "#fff",
-            fontSize: isMobile ? '10px' : '12px',
-            width: isMobile ? '24px' : '28px',
-            height: isMobile ? '24px' : '28px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0
-          }}
-          title={isRichTextMode ? 'Switch to single line' : 'Switch to multi-line editor'}
-        >
-          {isRichTextMode ? '📝' : '📄'}
-        </button>
-        <button
-          onClick={isRecording ? stopRecording : startRecording}
-          style={{
-            padding: "0",
-            borderRadius: "50%",
-            border: "none",
-            cursor: "pointer",
-            backgroundColor: isRecording ? '#ef4444' : (darkMode ? '#8b5cf6' : '#7c3aed'),
-            color: "#fff",
-            position: 'relative',
-            fontSize: isMobile ? '10px' : '12px',
-            width: isMobile ? '24px' : '28px',
-            height: isMobile ? '24px' : '28px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0
-          }}
-          title={isRecording ? `Recording... ${recordingTime}s` : 'Record voice message'}
-        >
-          {isRecording ? '⏹️' : '🎤'}
-          {isRecording && (
+        
+        {/* Right toolbar button */}
+        <div style={{ position: "relative", flexShrink: 0 }}>
+          <button
+            onClick={() => setShowRightToolbar(!showRightToolbar)}
+            style={{
+              padding: "6px 8px",
+              borderRadius: 4,
+              border: "none",
+              backgroundColor: showRightToolbar ? (darkMode ? '#0ea5a4' : '#2563eb') : (darkMode ? '#374151' : '#e5e7eb'),
+              color: showRightToolbar ? '#fff' : (darkMode ? '#fff' : '#111827'),
+              cursor: "pointer",
+              fontSize: "12px",
+            }}
+            title="Show actions"
+          >
+            ^
+          </button>
+          
+          {showRightToolbar && (
             <div style={{
-              position: 'absolute',
-              top: '-18px',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              fontSize: '9px',
-              color: '#ef4444',
-              fontWeight: 'bold'
+              position: "absolute",
+              bottom: "100%",
+              right: 0,
+              backgroundColor: darkMode ? "#1f2937" : "#ffffff",
+              border: `1px solid ${darkMode ? "#374151" : "#d1d5db"}`,
+              borderRadius: 8,
+              padding: "8px",
+              marginBottom: 8,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+              zIndex: 1000,
+              display: "flex",
+              gap: "4px",
+              flexWrap: "wrap",
+              minWidth: "120px",
             }}>
-              {recordingTime}s
+              <button onClick={() => { const newKeyword = prompt('Add keyword for notifications:', ''); if (newKeyword && newKeyword.trim()) { setKeywords(prev => [...prev, newKeyword.trim().toLowerCase()]); } }} style={{ padding: "4px 6px", borderRadius: 4, border: "none", backgroundColor: darkMode ? '#6b7280' : '#9ca3af', color: "#fff", cursor: "pointer", fontSize: "12px" }} title={`Keywords: ${keywords.join(', ')}`}>🔔</button>
+              <button onClick={() => setIsRichTextMode(!isRichTextMode)} style={{ padding: "4px 6px", borderRadius: 4, border: "none", backgroundColor: isRichTextMode ? (darkMode ? '#7c3aed' : '#8b5cf6') : (darkMode ? '#6b7280' : '#9ca3af'), color: "#fff", cursor: "pointer", fontSize: "12px" }} title={isRichTextMode ? 'Single line' : 'Multi-line'}>{isRichTextMode ? '📝' : '📄'}</button>
+              <button onClick={isRecording ? stopRecording : startRecording} style={{ padding: "4px 6px", borderRadius: 4, border: "none", backgroundColor: isRecording ? '#ef4444' : (darkMode ? '#8b5cf6' : '#7c3aed'), color: "#fff", cursor: "pointer", fontSize: "12px", position: 'relative' }} title={isRecording ? `Recording... ${recordingTime}s` : 'Voice'}>🎤{isRecording && <div style={{ position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)', fontSize: '8px', color: '#ef4444', fontWeight: 'bold' }}>{recordingTime}s</div>}</button>
+              <button onClick={() => fileInputRef.current?.click()} disabled={uploading} style={{ padding: "4px 6px", borderRadius: 4, border: "none", backgroundColor: uploading ? (darkMode ? '#6b7280' : '#9ca3af') : (darkMode ? '#059669' : '#10b981'), color: "#fff", cursor: uploading ? 'not-allowed' : "pointer", fontSize: "12px", display: 'flex', alignItems: 'center', gap: '4px' }} title={uploading ? 'Uploading...' : 'Upload file'}>{uploading ? <><LoadingSpinner size={10} color="#fff" /> Up</> : '📎'}</button>
+
             </div>
           )}
-        </button>
-        <button 
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          style={{
-            padding: "0",
-            borderRadius: "50%",
-            border: "none",
-            cursor: "pointer",
-            backgroundColor: uploading ? (darkMode ? '#6b7280' : '#9ca3af') : (darkMode ? '#059669' : '#10b981'),
-            color: "#fff",
-            fontSize: isMobile ? '10px' : '12px',
-            width: isMobile ? '24px' : '28px',
-            height: isMobile ? '24px' : '28px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0
-          }}
-        >
-          {uploading ? '📤' : '📎'}
-        </button>
+        </div>
+        
+        {/* Send button */}
         <button 
           onClick={sendMessage} 
           style={{
@@ -1981,6 +1951,15 @@ export default function ChatBoxContent({ username, onLogout }) {
         >
           Send
         </button>
+        
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileSelect}
+          style={{ display: 'none' }}
+          accept="image/*,application/pdf,.txt,.doc,.docx,.mp3,.wav,.mp4,.mov,.avi"
+          title="Upload images, documents, audio, or video files (max 10MB)"
+        />
       </div>
       </div>
       
