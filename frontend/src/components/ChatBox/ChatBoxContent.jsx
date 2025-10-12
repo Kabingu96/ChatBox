@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import './ChatBox.css';
 import LoadingSpinner from './LoadingSpinner';
+import WelcomeTour from './WelcomeTour';
+import KeyboardShortcuts from './KeyboardShortcuts';
 
 // Helper function to format timestamps
 const formatTimeAgo = (timestamp) => {
@@ -195,6 +197,8 @@ export default function ChatBoxContent({ username, onLogout }) {
   const [roomJoinTime, setRoomJoinTime] = useState(null);
   const [autoScroll, setAutoScroll] = useState(true);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [messageCache, setMessageCache] = useState(new Map());
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const recordingInterval = useRef(null);
   const endRef = useRef(null);
   const audioRef = useRef(null);
@@ -401,6 +405,27 @@ export default function ChatBoxContent({ username, onLogout }) {
       socket.close();
     };
   }, [username, backendWs, currentRoom]);
+
+  // Message pagination - load more messages when scrolling to top
+  const loadMoreMessages = async () => {
+    if (isLoadingHistory || filteredMessages.length === 0) return;
+    
+    setIsLoadingHistory(true);
+    try {
+      const oldestMessage = filteredMessages[0];
+      const response = await fetch(`${backendHttp}/messages/history?room=${currentRoom}&before=${oldestMessage.id}&limit=20`);
+      if (response.ok) {
+        const olderMessages = await response.json();
+        if (olderMessages.length > 0) {
+          setMessages(prev => [...olderMessages, ...prev]);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load message history:', err);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
 
   // Advanced message filtering
   const filteredMessages = (() => {
@@ -934,6 +959,8 @@ export default function ChatBoxContent({ username, onLogout }) {
 
   return (
     <div className={`chat-container ${darkMode ? 'dark' : ''}`}>
+      <WelcomeTour darkMode={darkMode} />
+      <KeyboardShortcuts darkMode={darkMode} />
       <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
       <div className="chat-header">
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -1299,13 +1326,30 @@ export default function ChatBoxContent({ username, onLogout }) {
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onScroll={(e) => {
+          const { scrollTop, scrollHeight, clientHeight } = e.target;
+          
+          // Load more messages when scrolling near top
+          if (scrollTop < 100 && !isLoadingHistory) {
+            loadMoreMessages();
+          }
+          
           if (!autoScroll) {
-            const { scrollTop, scrollHeight, clientHeight } = e.target;
             const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
             setShowScrollToBottom(!isAtBottom);
           }
         }}
       >
+        {isLoadingHistory && (
+          <div style={{
+            textAlign: 'center',
+            padding: '16px',
+            color: darkMode ? '#9ca3af' : '#6b7280',
+            fontSize: '14px'
+          }}>
+            <LoadingSpinner size={16} color={darkMode ? '#9ca3af' : '#6b7280'} />
+            <span style={{ marginLeft: '8px' }}>Loading older messages...</span>
+          </div>
+        )}
         {filteredMessages.map((m) => {
           const isMine = !!m.fromUser;
           const wrapperStyle = {
@@ -1814,8 +1858,9 @@ export default function ChatBoxContent({ username, onLogout }) {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={onKeyDown}
-              placeholder="Type your message..."
+              placeholder="Type your message... (Use **bold**, *italic*, `code`, @username)"
               className="input-bar-field"
+              title="Formatting: **bold** *italic* `code` @mention"
             />
           )}
           {showEmojiPicker && (
