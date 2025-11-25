@@ -15,8 +15,8 @@ ENV REACT_APP_WS_BASE=$REACT_APP_WS_BASE
 
 # Copy package files
 COPY package*.json ./
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci --only=production
+RUN --mount=type=cache,target=/root/.npm npm install --only=production
+
 
 # Copy source code
 COPY . .
